@@ -19,25 +19,25 @@ package com.example.android.toyvpn
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.net.ConnectivityManager
 import android.net.VpnService
 import android.os.Handler
 import android.os.Message
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import android.widget.Toast
+import org.pcap4j.packet.*
 
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.net.InetSocketAddress
+import java.net.*
 import java.nio.ByteBuffer
-import java.nio.channels.DatagramChannel
 
 class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
-    private var mServerAddress: String? = null
-    private var mServerPort: String? = null
-    private var mSharedSecret: ByteArray? = null
     private val mConfigureIntent: PendingIntent? = null
+
+    private var mDnsServers: List<InetAddress> = listOf()
 
     private var mHandler: Handler? = null
     private var mThread: Thread? = null
@@ -66,6 +66,7 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
     override fun handleMessage(message: Message?): Boolean {
         if (message != null) {
+            Log.i(TAG, "== " + message.toString())
             Toast.makeText(this, message.what, Toast.LENGTH_SHORT).show()
         }
         return true
@@ -75,35 +76,16 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
         try {
             Log.i(TAG, "Starting")
 
-            // If anything needs to be obtained using the network, get it now.
-            // This greatly reduces the complexity of seamless handover, which
-            // tries to recreate the tunnel without shutting down everything.
-            // In this demo, all we need to know is the server address.
-//            val server = InetSocketAddress(
-//                    mServerAddress, Integer.parseInt(mServerPort))
+            // Get the current DNS servers before starting the VPN
+            getDnsServers()
 
-            // We try to create the tunnel for several times. The better way
-            // is to work with ConnectivityManager, such as trying only when
-            // the network is avaiable. Here we just use a counter to keep
-            // things simple.
-            var attempt = 0
-//            while (attempt < 10) {
-                mHandler!!.sendEmptyMessage(R.string.connecting)
+            mHandler!!.sendEmptyMessage(R.string.connecting)
 
-                runVpn()
+            runVpn()
 
-                // Reset the counter if we were connected.
-//                if (run(server)) {
-//                    attempt = 0
-//                }
-
-                // Sleep for a while. This also checks if we got interrupted.
-                Thread.sleep(3000)
-                ++attempt
-//            }
-            Log.i(TAG, "Giving up")
+            Log.i(TAG, "Stopped")
         } catch (e: Exception) {
-            Log.e(TAG, "Got " + e.toString())
+            Log.e(TAG, "Exception in run() ", e)
         } finally {
             try {
                 mInterface!!.close()
@@ -123,26 +105,15 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
     private fun runVpn(): Boolean {
         var connected = false
 
-//        val tunnel = DatagramChannel.open()
+        val dns_socket = DatagramSocket()
 
         try {
-//            // Protect the tunnel before connecting to avoid loopback.
-//            if (!protect(tunnel.socket())) {
-//                throw IllegalStateException("Cannot protect the tunnel")
-//            }
-//
-//            // Connect to the server.
-//            tunnel.connect(server)
-//
-//            // For simplicity, we use the same thread for both reading and
-//            // writing. Here we put the tunnel into non-blocking mode.
-//            tunnel.configureBlocking(false)
+            protect(dns_socket)
 
             // Authenticate and configure the virtual network interface.
             configure()
 
             // Now we are connected. Set the flag and show the message.
-//            connected = true
             mHandler!!.sendEmptyMessage(R.string.connected)
 
             // Packets to be sent are queued in this input stream.
@@ -154,98 +125,110 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
             // Allocate the buffer for a single packet.
             val packet = ByteBuffer.allocate(32767)
 
-            // We use a timer to determine the status of the tunnel. It
-            // works on both sides. A positive value means sending, and
-            // any other means receiving. We start with receiving.
-            var timer = 0
-
             // We keep forwarding packets till something goes wrong.
             while (true) {
-                // Assume that we did not make any progress in this iteration.
-                var idle = true
 
                 // Read the outgoing packet from the input stream.
-                var length = in_fd.read(packet.array())
+                val length = in_fd.read(packet.array())
                 if (length > 0) {
                     // Write the outgoing packet to the tunnel.
                     packet.limit(length)
                     Log.i(TAG, "Got packet!!")
-                    logPacket(packet)
-                    packet.clear()
+                    val parsed_pkt = IpV4Packet.newPacket(packet.array(), 0, length)
+                    Log.i(TAG, "PARSED_PACKET = " + parsed_pkt)
 
-                    // There might be more outgoing packets.
-                    idle = false
+                    val dns_data = (parsed_pkt.payload as UdpPacket).payload.rawData
+                    var out_pkt = DatagramPacket(dns_data, 0, dns_data.size, mDnsServers[0], 53)
+                    Log.i(TAG, "SENDING TO REAL DNS SERVER!")
+                    dns_socket.send(out_pkt)
+                    Log.i(TAG, "RECEIVING FROM REAL DNS SERVER!")
+                    val datagram_data = ByteArray(1024)
+                    val reply_pkt = DatagramPacket(datagram_data, datagram_data.size)
+                    dns_socket.receive(reply_pkt)
+                    Log.i(TAG, "IN = " + reply_pkt)
+                    Log.i(TAG, "adderess = " + reply_pkt.address + " port = " + reply_pkt.port)
+                    logPacket(datagram_data)
 
-                    // If we were receiving, switch to sending.
-                    if (timer < 1) {
-                        timer = 1
-                    }
+
+                    val udp_packet = parsed_pkt.payload as UdpPacket
+//                    val out_packet = IpV4Packet.Builder(parsed_pkt)
+//                        .srcAddr(parsed_pkt.header.dstAddr)
+//                        .dstAddr(parsed_pkt.header.srcAddr)
+//                        .correctChecksumAtBuild(false)
+//                        .correctLengthAtBuild(false)
+//                        .payloadBuilder(
+//                            UdpPacket.Builder(udp_packet)
+//                                .srcPort(udp_packet.header.dstPort)
+//                                .dstPort(udp_packet.header.srcPort)
+//                                .correctChecksumAtBuild(false)
+//                                .correctLengthAtBuild(false)
+//                                .payloadBuilder(
+//                                    UnknownPacket.Builder()
+//                                        .rawData(out_pkt.data)
+//                                )
+//                            ).build()
+
+                    val out_packet = IpV4Packet.Builder()
+                        .version(parsed_pkt.header.version)
+                        .ihl(parsed_pkt.header.ihl)
+                        .tos(parsed_pkt.header.tos)
+                        .srcAddr(parsed_pkt.header.dstAddr)
+                        .dstAddr(parsed_pkt.header.srcAddr)
+                        .protocol(parsed_pkt.header.protocol)
+                        .correctChecksumAtBuild(true)
+                        .correctLengthAtBuild(true)
+                            .payloadBuilder(UdpPacket.Builder()
+                            .srcAddr(parsed_pkt.header.dstAddr)
+                            .dstAddr(parsed_pkt.header.srcAddr)
+                            .srcPort(udp_packet.header.dstPort)
+                            .dstPort(udp_packet.header.srcPort)
+                            .correctChecksumAtBuild(true)
+                            .correctLengthAtBuild(true)
+                            .payloadBuilder(
+                                UnknownPacket.Builder()
+                                    .rawData(datagram_data)
+                            )
+                        ).build()
+
+                    Log.i(TAG, "WRITING PACKET! " + out_packet)
+                    logPacket(out_packet.rawData)
+
+                    out_fd.write(out_packet.rawData)
+
+                    Log.i(TAG, "DONE!! ??")
+
                 }
-//
-//                // Read the incoming packet from the tunnel.
-//                length = tunnel.read(packet)
-//                if (length > 0) {
-//                    // Ignore control messages, which start with zero.
-//                    if (packet.get(0).toInt() != 0) {
-//                        // Write the incoming packet to the output stream.
-//                        out_fd.write(packet.array(), 0, length)
-//                    }
-//                    packet.clear()
-//
-//                    // There might be more incoming packets.
-//                    idle = false
-//
-//                    // If we were sending, switch to receiving.
-//                    if (timer > 0) {
-//                        timer = 0
-//                    }
-//                }
 
-//                // If we are idle or waiting for the network, sleep for a
-//                // fraction of time to avoid busy looping.
-//                if (idle) {
-//                    Thread.sleep(100)
-//
-//                    // Increase the timer. This is inaccurate but good enough,
-//                    // since everything is operated in non-blocking mode.
-//                    timer += if (timer > 0) 100 else -100
-//
-//                    // We are receiving for a long time but not sending.
-//                    if (timer < -15000) {
-//                        // Send empty control messages.
-//                        packet.put(0.toByte()).limit(1)
-//                        for (i in 0..2) {
-//                            packet.position(0)
-//                            tunnel.write(packet)
-//                        }
-//                        packet.clear()
-//
-//                        // Switch to sending.
-//                        timer = 1
-//                    }
-//
-//                    // We are sending for a long time but not receiving.
-//                    if (timer > 20000) {
-//                        throw IllegalStateException("Timed out")
-//                    }
-//                }
             }
         } catch (e: InterruptedException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Got " + e.toString())
+            Log.e(TAG, "Got Exception", e)
         } finally {
-            try {
-//                tunnel.close()
-            } catch (e: Exception) {
-                // ignore
-            }
-
+            dns_socket.close()
         }
         return connected
     }
 
-    private fun logPacket(packet: ByteBuffer) {
+    private fun getDnsServers() {
+        val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        mDnsServers = cm.getLinkProperties(cm.activeNetwork).dnsServers
+    }
+
+    private fun logPacket(packet: ByteArray) = logPacket(packet, 0, packet.size)
+
+    private fun logPacket(packet: ByteArray, size: Int) = logPacket(packet, 0, size)
+
+    private fun logPacket(packet: ByteArray, offset: Int, size: Int) {
+        var logLine = "PACKET: <"
+        for (index in (offset..(size-1))) {
+            logLine += String.format("%02x", packet[index])
+        }
+
+        Log.i(TAG, logLine + ">")
+    }
+
+    private fun logPacketNice(packet: ByteBuffer) {
         Log.i(TAG, "=============== PACKET ===============")
         var logLine = String.format("%04x: ", 0)
         for ((index, value) in packet.array().withIndex()) {
@@ -270,6 +253,7 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
         Log.i(TAG, "Configuring")
 
         // Configure a builder while parsing the parameters.
+        // TODO: Make this dynamic
         val builder = this.Builder()
         builder.addAddress("192.168.50.1", 24)
         builder.addDnsServer("192.168.50.5")
@@ -283,7 +267,7 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
         }
 
         // Create a new interface using the builder and save the parameters.
-        mInterface = builder.setSession("BLAHBLAH").setConfigureIntent(mConfigureIntent).establish()
+        mInterface = builder.setSession("AdBlockVpn").setConfigureIntent(mConfigureIntent).establish()
         Log.i(TAG, "Configured")
     }
 

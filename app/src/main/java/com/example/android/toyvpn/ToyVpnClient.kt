@@ -35,6 +35,10 @@ class ToyVpnClient : Activity(), View.OnClickListener {
         setContentView(R.layout.form)
 
         findViewById(R.id.connect).setOnClickListener(this)
+
+        val prefix = packageName
+        val intent = Intent(this, ToyVpnService::class.java)
+        startService(intent)
     }
 
     override fun onClick(v: View) {
