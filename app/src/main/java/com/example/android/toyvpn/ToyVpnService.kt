@@ -151,44 +151,24 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
 
                     val udp_packet = parsed_pkt.payload as UdpPacket
-//                    val out_packet = IpV4Packet.Builder(parsed_pkt)
-//                        .srcAddr(parsed_pkt.header.dstAddr)
-//                        .dstAddr(parsed_pkt.header.srcAddr)
-//                        .correctChecksumAtBuild(false)
-//                        .correctLengthAtBuild(false)
-//                        .payloadBuilder(
-//                            UdpPacket.Builder(udp_packet)
-//                                .srcPort(udp_packet.header.dstPort)
-//                                .dstPort(udp_packet.header.srcPort)
-//                                .correctChecksumAtBuild(false)
-//                                .correctLengthAtBuild(false)
-//                                .payloadBuilder(
-//                                    UnknownPacket.Builder()
-//                                        .rawData(out_pkt.data)
-//                                )
-//                            ).build()
-
-                    val out_packet = IpV4Packet.Builder()
-                        .version(parsed_pkt.header.version)
-                        .ihl(parsed_pkt.header.ihl)
-                        .tos(parsed_pkt.header.tos)
+                    val out_packet = IpV4Packet.Builder(parsed_pkt)
                         .srcAddr(parsed_pkt.header.dstAddr)
                         .dstAddr(parsed_pkt.header.srcAddr)
-                        .protocol(parsed_pkt.header.protocol)
                         .correctChecksumAtBuild(true)
                         .correctLengthAtBuild(true)
-                            .payloadBuilder(UdpPacket.Builder()
-                            .srcAddr(parsed_pkt.header.dstAddr)
-                            .dstAddr(parsed_pkt.header.srcAddr)
-                            .srcPort(udp_packet.header.dstPort)
-                            .dstPort(udp_packet.header.srcPort)
-                            .correctChecksumAtBuild(true)
-                            .correctLengthAtBuild(true)
-                            .payloadBuilder(
-                                UnknownPacket.Builder()
-                                    .rawData(datagram_data)
-                            )
-                        ).build()
+                        .payloadBuilder(
+                            UdpPacket.Builder(udp_packet)
+                                .srcPort(udp_packet.header.dstPort)
+                                .dstPort(udp_packet.header.srcPort)
+                                .srcAddr(parsed_pkt.header.dstAddr)
+                                .dstAddr(parsed_pkt.header.srcAddr)
+                                .correctChecksumAtBuild(true)
+                                .correctLengthAtBuild(true)
+                                .payloadBuilder(
+                                    UnknownPacket.Builder()
+                                        .rawData(datagram_data)
+                                )
+                            ).build()
 
                     Log.i(TAG, "WRITING PACKET! " + out_packet)
                     logPacket(out_packet.rawData)
