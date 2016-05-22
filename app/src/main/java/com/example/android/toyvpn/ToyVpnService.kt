@@ -27,6 +27,7 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import android.widget.Toast
 import org.pcap4j.packet.*
+import org.xbill.DNS.*
 
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -127,10 +128,15 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
             // We keep forwarding packets till something goes wrong.
             while (true) {
-
                 // Read the outgoing packet from the input stream.
                 val length = in_fd.read(packet.array())
-                if (length > 0) {
+                var out_data_to_write: ByteArray? = null
+
+                if (length == 0) {
+                    continue
+                }
+
+                try {
                     // Write the outgoing packet to the tunnel.
                     packet.limit(length)
                     Log.i(TAG, "Got packet!!")
@@ -138,46 +144,67 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
                     Log.i(TAG, "PARSED_PACKET = " + parsed_pkt)
 
                     val dns_data = (parsed_pkt.payload as UdpPacket).payload.rawData
-                    var out_pkt = DatagramPacket(dns_data, 0, dns_data.size, mDnsServers[0], 53)
-                    Log.i(TAG, "SENDING TO REAL DNS SERVER!")
-                    dns_socket.send(out_pkt)
-                    Log.i(TAG, "RECEIVING FROM REAL DNS SERVER!")
-                    val datagram_data = ByteArray(1024)
-                    val reply_pkt = DatagramPacket(datagram_data, datagram_data.size)
-                    dns_socket.receive(reply_pkt)
-                    Log.i(TAG, "IN = " + reply_pkt)
-                    Log.i(TAG, "adderess = " + reply_pkt.address + " port = " + reply_pkt.port)
-                    logPacket(datagram_data)
+                    var msg = Message(dns_data)
+                    val dns_query_name = msg.question.name.toString(true)
+                    Log.i(TAG, "DNS Name = " + dns_query_name)
+
+                    val response: ByteArray
+                    if (dns_query_name != "www.nfl.com") {
+                        val out_pkt = DatagramPacket(dns_data, 0, dns_data.size, mDnsServers[0], 53)
+                        Log.i(TAG, "SENDING TO REAL DNS SERVER!")
+                        dns_socket.send(out_pkt)
+                        Log.i(TAG, "RECEIVING FROM REAL DNS SERVER!")
+
+                        val datagram_data = ByteArray(1024)
+                        val reply_pkt = DatagramPacket(datagram_data, datagram_data.size)
+                        dns_socket.receive(reply_pkt)
+                        Log.i(TAG, "IN = " + reply_pkt)
+                        Log.i(TAG, "adderess = " + reply_pkt.address + " port = " + reply_pkt.port)
+                        logPacket(datagram_data)
+                        response = datagram_data
+                    } else {
+                        msg.header.setFlag(Flags.QR.toInt())
+                        msg.addRecord(ARecord(msg.question.name,
+                                msg.question.dClass,
+                                10.toLong(),
+                                Inet4Address.getLocalHost()), Section.ANSWER)
+                        response = msg.toWire()
+                    }
 
 
                     val udp_packet = parsed_pkt.payload as UdpPacket
                     val out_packet = IpV4Packet.Builder(parsed_pkt)
-                        .srcAddr(parsed_pkt.header.dstAddr)
-                        .dstAddr(parsed_pkt.header.srcAddr)
-                        .correctChecksumAtBuild(true)
-                        .correctLengthAtBuild(true)
-                        .payloadBuilder(
-                            UdpPacket.Builder(udp_packet)
-                                .srcPort(udp_packet.header.dstPort)
-                                .dstPort(udp_packet.header.srcPort)
-                                .srcAddr(parsed_pkt.header.dstAddr)
-                                .dstAddr(parsed_pkt.header.srcAddr)
-                                .correctChecksumAtBuild(true)
-                                .correctLengthAtBuild(true)
-                                .payloadBuilder(
-                                    UnknownPacket.Builder()
-                                        .rawData(datagram_data)
-                                )
+                            .srcAddr(parsed_pkt.header.dstAddr)
+                            .dstAddr(parsed_pkt.header.srcAddr)
+                            .correctChecksumAtBuild(true)
+                            .correctLengthAtBuild(true)
+                            .payloadBuilder(
+                                    UdpPacket.Builder(udp_packet)
+                                            .srcPort(udp_packet.header.dstPort)
+                                            .dstPort(udp_packet.header.srcPort)
+                                            .srcAddr(parsed_pkt.header.dstAddr)
+                                            .dstAddr(parsed_pkt.header.srcAddr)
+                                            .correctChecksumAtBuild(true)
+                                            .correctLengthAtBuild(true)
+                                            .payloadBuilder(
+                                                    UnknownPacket.Builder()
+                                                            .rawData(response)
+                                            )
                             ).build()
 
                     Log.i(TAG, "WRITING PACKET! " + out_packet)
                     logPacket(out_packet.rawData)
-
-                    out_fd.write(out_packet.rawData)
-
-                    Log.i(TAG, "DONE!! ??")
-
+                    out_data_to_write = out_packet.rawData
+                } catch (e: Exception) {
+                    Log.e(TAG, "Got expcetion", e)
                 }
+
+                if (out_data_to_write != null) {
+                    out_fd.write(out_data_to_write)
+                }
+
+                Log.i(TAG, "DONE!! ??")
+
 
             }
         } catch (e: InterruptedException) {
@@ -238,6 +265,8 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
         builder.addAddress("192.168.50.1", 24)
         builder.addDnsServer("192.168.50.5")
         builder.addRoute("192.168.50.0", 24)
+        builder.setBlocking(true)
+
 
         // Close the old interface since the parameters have been changed.
         try {

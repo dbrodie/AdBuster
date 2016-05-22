@@ -7,8 +7,8 @@ android {
 
     defaultConfig {
         applicationId "com.example.android.toyvpn"
-        minSdkVersion 14
-        targetSdkVersion 14
+        minSdkVersion 21
+        targetSdkVersion 21
     }
 
     buildTypes {
@@ -19,6 +19,15 @@ android {
     }
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    lintOptions {
+        abortOnError false
+    }
+
+    compileOptions.with {
+        sourceCompatibility JavaVersion.VERSION_1_7
+        targetCompatibility JavaVersion.VERSION_1_7
     }
 }
 buildscript {
@@ -38,4 +47,5 @@ dependencies {
     compile 'org.pcap4j:pcap4j-core:1.6.4'
     compile 'org.pcap4j:pcap4j-packetfactory-propertiesbased:1.6.4'
     compile 'org.slf4j:slf4j-android:1.7.21'
+    compile 'dnsjava:dnsjava:2.1.7'
 }
