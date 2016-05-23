@@ -31,12 +31,11 @@ import org.xbill.DNS.*
 
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.InputStreamReader
 import java.net.*
 import java.nio.ByteBuffer
 
 class ToyVpnService : VpnService(), Handler.Callback, Runnable {
-
-    private val mConfigureIntent: PendingIntent? = null
 
     private var mDnsServers: List<InetAddress> = listOf()
 
@@ -45,6 +44,8 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
     private var mInterface: ParcelFileDescriptor? = null
     private var mParameters: String? = null
+
+    private var mBlockedHosts: Set<String> = setOf()
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         // The handler is only used to show messages.
@@ -76,6 +77,9 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
     @Synchronized override fun run() {
         try {
             Log.i(TAG, "Starting")
+
+            // Load the block list
+            loadBlockedHosts()
 
             // Get the current DNS servers before starting the VPN
             getDnsServers()
@@ -129,6 +133,7 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
             // We keep forwarding packets till something goes wrong.
             while (true) {
                 // Read the outgoing packet from the input stream.
+                Log.i(TAG, "WAITING FOR PACKET!")
                 val length = in_fd.read(packet.array())
                 var out_data_to_write: ByteArray? = null
 
@@ -139,17 +144,33 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
                 try {
                     // Write the outgoing packet to the tunnel.
                     packet.limit(length)
-                    Log.i(TAG, "Got packet!!")
+//                    Log.i(TAG, "Got packet!!")
                     val parsed_pkt = IpV4Packet.newPacket(packet.array(), 0, length)
-                    Log.i(TAG, "PARSED_PACKET = " + parsed_pkt)
+//                    Log.i(TAG, "PARSED_PACKET = " + parsed_pkt)
 
                     val dns_data = (parsed_pkt.payload as UdpPacket).payload.rawData
                     var msg = Message(dns_data)
                     val dns_query_name = msg.question.name.toString(true)
-                    Log.i(TAG, "DNS Name = " + dns_query_name)
+//                    Log.i(TAG, "DNS Name = " + dns_query_name)
 
                     val response: ByteArray
-                    if (dns_query_name != "www.nfl.com") {
+                    Log.i(TAG, "DNS Name = " + dns_query_name)
+                    var blocked = false
+                    var checkName = ""
+                    for (label in dns_query_name.split(".").reversed()) {
+                        if (checkName == "") {
+                            checkName = label.toLowerCase()
+                        } else {
+                            checkName = label.toLowerCase() + "." + checkName
+                        }
+                        if (mBlockedHosts.contains(checkName)) {
+                            Log.i(TAG, "Blocked on " + checkName)
+                            blocked = true
+                            break
+                        }
+                    }
+                    if (!blocked) {
+                        Log.i(TAG, "    PERMITTED!")
                         val out_pkt = DatagramPacket(dns_data, 0, dns_data.size, mDnsServers[0], 53)
                         Log.i(TAG, "SENDING TO REAL DNS SERVER!")
                         dns_socket.send(out_pkt)
@@ -158,11 +179,12 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
                         val datagram_data = ByteArray(1024)
                         val reply_pkt = DatagramPacket(datagram_data, datagram_data.size)
                         dns_socket.receive(reply_pkt)
-                        Log.i(TAG, "IN = " + reply_pkt)
-                        Log.i(TAG, "adderess = " + reply_pkt.address + " port = " + reply_pkt.port)
-                        logPacket(datagram_data)
+//                        Log.i(TAG, "IN = " + reply_pkt)
+//                        Log.i(TAG, "adderess = " + reply_pkt.address + " port = " + reply_pkt.port)
+//                        logPacket(datagram_data)
                         response = datagram_data
                     } else {
+                        Log.i(TAG, "    BLOCKED!")
                         msg.header.setFlag(Flags.QR.toInt())
                         msg.addRecord(ARecord(msg.question.name,
                                 msg.question.dClass,
@@ -192,8 +214,8 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
                                             )
                             ).build()
 
-                    Log.i(TAG, "WRITING PACKET! " + out_packet)
-                    logPacket(out_packet.rawData)
+                    Log.i(TAG, "WRITING PACKET!" )
+//                    logPacket(out_packet.rawData)
                     out_data_to_write = out_packet.rawData
                 } catch (e: Exception) {
                     Log.e(TAG, "Got expcetion", e)
@@ -203,7 +225,7 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
                     out_fd.write(out_data_to_write)
                 }
 
-                Log.i(TAG, "DONE!! ??")
+//                Log.i(TAG, "DONE!! ??")
 
 
             }
@@ -220,6 +242,24 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
     private fun getDnsServers() {
         val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         mDnsServers = cm.getLinkProperties(cm.activeNetwork).dnsServers
+    }
+
+    private fun loadBlockedHosts() {
+        Log.i(TAG, "Loading block list")
+        var blockedHosts : Set<String> = mutableSetOf()
+        val f = assets.open("adaway_hosts.txt")
+        InputStreamReader(f.buffered()).forEachLine {
+            val s = it.removeSurrounding(" ")
+            if (s.length != 0 && s[0] != '#') {
+                val split = s.split(" ")
+                if (split.size == 2 && split[0] == "127.0.0.1") {
+                    blockedHosts = blockedHosts.plus(split[1].toLowerCase())
+                }
+            }
+        }
+
+        mBlockedHosts = blockedHosts
+        Log.i(TAG, "Loaded " + mBlockedHosts.size + " blocked hosts")
     }
 
     private fun logPacket(packet: ByteArray) = logPacket(packet, 0, packet.size)
@@ -276,7 +316,10 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
         }
 
         // Create a new interface using the builder and save the parameters.
-        mInterface = builder.setSession("AdBlockVpn").setConfigureIntent(mConfigureIntent).establish()
+        mInterface = builder.setSession("@@AdBlockVpn").setConfigureIntent(
+                PendingIntent.getActivity(this, 1, Intent(this, ToyVpnClient::class.java),
+                        PendingIntent.FLAG_CANCEL_CURRENT)
+            ).establish()
         Log.i(TAG, "Configured")
     }
 
