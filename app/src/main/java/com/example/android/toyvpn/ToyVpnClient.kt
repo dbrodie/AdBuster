@@ -22,23 +22,14 @@ import android.net.VpnService
 import android.os.Bundle
 import android.util.Log
 import android.view.View
-import android.widget.TextView
-import android.widget.Button
 
 class ToyVpnClient : Activity(), View.OnClickListener {
-    private var mServerAddress: TextView? = null
-    private var mServerPort: TextView? = null
-    private var mSharedSecret: TextView? = null
-
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.form)
 
         findViewById(R.id.connect).setOnClickListener(this)
 
-        val prefix = packageName
-        val intent = Intent(this, ToyVpnService::class.java)
-        startService(intent)
     }
 
     override fun onClick(v: View) {
@@ -52,7 +43,6 @@ class ToyVpnClient : Activity(), View.OnClickListener {
 
     override fun onActivityResult(request: Int, result: Int, data: Intent?) {
         if (result == Activity.RESULT_OK) {
-            val prefix = packageName
             val intent = Intent(this, ToyVpnService::class.java)
             startService(intent)
         }
