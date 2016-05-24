@@ -161,21 +161,8 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
             val response: ByteArray
             Log.i(TAG, "DNS Name = " + dns_query_name)
-            var blocked = false
-            var checkName = ""
-            for (label in dns_query_name.split(".").reversed()) {
-                if (checkName == "") {
-                    checkName = label.toLowerCase()
-                } else {
-                    checkName = label.toLowerCase() + "." + checkName
-                }
-                if (mBlockedHosts.contains(checkName)) {
-                    Log.i(TAG, "Blocked on " + checkName)
-                    blocked = true
-                    break
-                }
-            }
-            if (!blocked) {
+
+            if (!mBlockedHosts.contains(dns_query_name)) {
                 Log.i(TAG, "    PERMITTED!")
                 val out_pkt = DatagramPacket(dns_data, 0, dns_data.size, mDnsServers[0], 53)
                 Log.i(TAG, "SENDING TO REAL DNS SERVER!")
