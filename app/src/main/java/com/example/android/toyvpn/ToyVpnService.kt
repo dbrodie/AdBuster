@@ -39,6 +39,9 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 class ToyVpnService : VpnService(), Handler.Callback, Runnable {
+    companion object {
+        private val TAG = "ToyVpnService"
+    }
 
     private var mHandler: Handler? = null
     private var mThread: Thread? = null
@@ -67,7 +70,6 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
     override fun handleMessage(message: Message?): Boolean {
         if (message != null) {
-            Log.i(TAG, "== " + message.toString())
             Toast.makeText(this, message.what, Toast.LENGTH_SHORT).show()
         }
         return true
@@ -98,8 +100,6 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
     @Throws(Exception::class)
     private fun runVpn() {
-        var connected = false
-
         // Authenticate and configure the virtual network interface.
         val pfd = configure()
 
@@ -122,7 +122,7 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
                 Log.i(TAG, "WAITING FOR PACKET!")
                 val length = in_fd.read(packet)
                 if (length == 0) {
-                    // TODO: Possibley change to exception
+                    // TODO: Possibly change to exception
                     Log.w(TAG, "Got empty packet!")
                 }
 
@@ -155,12 +155,12 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
             // Log.i(TAG, "PARSED_PACKET = " + parsed_pkt)
 
             val dns_data = (parsed_pkt.payload as UdpPacket).payload.rawData
-            var msg = Message(dns_data)
+            val msg = Message(dns_data)
             val dns_query_name = msg.question.name.toString(true)
             // Log.i(TAG, "DNS Name = " + dns_query_name)
 
             val response: ByteArray
-            Log.i(TAG, "DNS Name = " + dns_query_name)
+            Log.i(TAG, "DNS Name = $dns_query_name")
 
             if (!mBlockedHosts.contains(dns_query_name)) {
                 Log.i(TAG, "    PERMITTED!")
@@ -223,16 +223,16 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
         // Seriously, Android? Seriously?
         val activeInfo = cm.activeNetworkInfo
         mDnsServers = cm.getLinkProperties(
-                cm.allNetworks.filter {
-                    var ni = cm.getNetworkInfo(it);  ni.isConnected() && ni.type == activeInfo.type && ni.subtype == activeInfo.subtype
+                cm.allNetworks.filter { val ni = cm.getNetworkInfo(it);
+                    ni.isConnected && ni.type == activeInfo.type && ni.subtype == activeInfo.subtype
                 }.first()
         ).dnsServers
-        Log.i(TAG, "Got DNS servers = " + mDnsServers)
+        Log.i(TAG, "Got DNS servers = $mDnsServers")
     }
 
     private fun loadBlockedHosts() {
         Log.i(TAG, "Loading block list")
-        var blockedHosts : MutableSet<String> = mutableSetOf()
+        val blockedHosts : MutableSet<String> = mutableSetOf()
 
         for (fileName in listOf("adaway_hosts.txt", "ad_servers.txt")) {
             val reader = assets.open(fileName)
@@ -252,11 +252,11 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
                 reader.close()
             }
 
-            Log.i(TAG, "From file " + fileName + " loaded " + count + " entires")
+            Log.i(TAG, "From file $fileName loaded $count  entires")
         }
 
         mBlockedHosts = blockedHosts
-        Log.i(TAG, "Loaded " + mBlockedHosts.size + " blocked hosts")
+        Log.i(TAG, "Loaded ${mBlockedHosts.size} blocked hosts")
     }
 
     private fun logPacket(packet: ByteArray) = logPacket(packet, 0, packet.size)
@@ -311,9 +311,5 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
             ).establish()
         Log.i(TAG, "Configured")
         return pfd
-    }
-
-    companion object {
-        private val TAG = "ToyVpnService"
     }
 }
