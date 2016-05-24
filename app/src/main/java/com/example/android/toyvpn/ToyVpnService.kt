@@ -31,6 +31,7 @@ import org.xbill.DNS.*
 
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.net.*
 import java.nio.ByteBuffer
@@ -253,16 +254,27 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
     private fun loadBlockedHosts() {
         Log.i(TAG, "Loading block list")
-        var blockedHosts : Set<String> = mutableSetOf()
-        val f = assets.open("adaway_hosts.txt")
-        InputStreamReader(f.buffered()).forEachLine {
-            val s = it.removeSurrounding(" ")
-            if (s.length != 0 && s[0] != '#') {
-                val split = s.split(" ")
-                if (split.size == 2 && split[0] == "127.0.0.1") {
-                    blockedHosts = blockedHosts.plus(split[1].toLowerCase())
+        var blockedHosts : MutableSet<String> = mutableSetOf()
+
+        for (fileName in listOf("adaway_hosts.txt", "ad_servers.txt")) {
+            val reader = assets.open(fileName)
+            var count = 0
+            try {
+                InputStreamReader(reader.buffered()).forEachLine {
+                    val s = it.removeSurrounding(" ")
+                    if (s.length != 0 && s[0] != '#') {
+                        val split = s.split(" ", "\t")
+                        if (split.size == 2 && split[0] == "127.0.0.1") {
+                            count += 1
+                            blockedHosts.add(split[1].toLowerCase())
+                        }
+                    }
                 }
+            } finally {
+                reader.close()
             }
+
+            Log.i(TAG, "From file " + fileName + " loaded " + count + " entires")
         }
 
         mBlockedHosts = blockedHosts
