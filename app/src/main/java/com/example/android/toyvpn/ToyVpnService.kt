@@ -31,25 +31,19 @@ import org.xbill.DNS.*
 
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.io.InputStream
 import java.io.InputStreamReader
 import java.net.*
 import java.nio.ByteBuffer
-import java.util.concurrent.Executors
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
-    private var mDnsServers: List<InetAddress> = listOf()
-
     private var mHandler: Handler? = null
     private var mThread: Thread? = null
 
-    private var mInterface: ParcelFileDescriptor? = null
-    private var mParameters: String? = null
-
+    private var mDnsServers: List<InetAddress> = listOf()
     private var mBlockedHosts: Set<String> = setOf()
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
@@ -97,33 +91,24 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
         } catch (e: Exception) {
             Log.e(TAG, "Exception in run() ", e)
         } finally {
-            try {
-                mInterface!!.close()
-            } catch (e: Exception) {
-                // ignore
-            }
-
-            mInterface = null
-            mParameters = null
-
             mHandler!!.sendEmptyMessage(R.string.disconnected)
             Log.i(TAG, "Exiting")
         }
     }
 
     @Throws(Exception::class)
-    private fun runVpn(): Boolean {
+    private fun runVpn() {
         var connected = false
 
-        try {
-            // Authenticate and configure the virtual network interface.
-            configure()
+        // Authenticate and configure the virtual network interface.
+        val pfd = configure()
 
+        try {
             // Now we are connected. Set the flag and show the message.
             mHandler!!.sendEmptyMessage(R.string.connected)
 
             // Packets to be sent are queued in this input stream.
-            val in_fd = FileInputStream(mInterface!!.fileDescriptor)
+            val in_fd = FileInputStream(pfd.fileDescriptor)
 
             // Allocate the buffer for a single packet.
             val packet = ByteArray(32767)
@@ -144,7 +129,7 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
                 val read_packet = packet.copyOfRange(0, length)
 
                 // Packets received need to be written to this output stream.
-                val out_fd = FileOutputStream(mInterface!!.fileDescriptor)
+                val out_fd = FileOutputStream(pfd.fileDescriptor)
 
                 // Packets to be sent to the real DNS server will need to be protected from the VPN
                 val dns_socket = DatagramSocket()
@@ -154,15 +139,14 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
                 executor.execute {
                     handleDnsRequest(read_packet, dns_socket, out_fd)
                 }
-
-
             }
         } catch (e: InterruptedException) {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Got Exception", e)
+        } finally {
+            pfd.close()
         }
-        return connected
     }
 
     private fun handleDnsRequest(packet: ByteArray, dnsSocket: DatagramSocket, outFd: FileOutputStream) {
@@ -321,7 +305,7 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
     }
 
     @Throws(Exception::class)
-    private fun configure() {
+    private fun configure(): ParcelFileDescriptor {
 
         Log.i(TAG, "Configuring")
 
@@ -333,20 +317,13 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
         builder.addRoute("192.168.50.0", 24)
         builder.setBlocking(true)
 
-
-        // Close the old interface since the parameters have been changed.
-        try {
-            mInterface?.close()
-        } catch (e: Exception) {
-            // ignore
-        }
-
         // Create a new interface using the builder and save the parameters.
-        mInterface = builder.setSession("@@AdBlockVpn").setConfigureIntent(
+        val pfd = builder.setSession("@@AdBlockVpn").setConfigureIntent(
                 PendingIntent.getActivity(this, 1, Intent(this, ToyVpnClient::class.java),
                         PendingIntent.FLAG_CANCEL_CURRENT)
             ).establish()
         Log.i(TAG, "Configured")
+        return pfd
     }
 
     companion object {
