@@ -249,7 +249,14 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
     private fun getDnsServers() {
         val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-        mDnsServers = cm.getLinkProperties(cm.activeNetwork).dnsServers
+        // Seriously, Android? Seriously?
+        val activeInfo = cm.activeNetworkInfo
+        mDnsServers = cm.getLinkProperties(
+                cm.allNetworks.filter {
+                    var ni = cm.getNetworkInfo(it);  ni.isConnected() && ni.type == activeInfo.type && ni.subtype == activeInfo.subtype
+                }.first()
+        ).dnsServers
+        Log.i(TAG, "Got DNS servers = " + mDnsServers)
     }
 
     private fun loadBlockedHosts() {
