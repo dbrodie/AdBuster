@@ -34,6 +34,10 @@ import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.net.*
 import java.nio.ByteBuffer
+import java.util.concurrent.Executors
+import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
@@ -110,11 +114,7 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
     private fun runVpn(): Boolean {
         var connected = false
 
-        val dns_socket = DatagramSocket()
-
         try {
-            protect(dns_socket)
-
             // Authenticate and configure the virtual network interface.
             configure()
 
@@ -124,108 +124,35 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
             // Packets to be sent are queued in this input stream.
             val in_fd = FileInputStream(mInterface!!.fileDescriptor)
 
-            // Packets received need to be written to this output stream.
-            val out_fd = FileOutputStream(mInterface!!.fileDescriptor)
-
             // Allocate the buffer for a single packet.
-            val packet = ByteBuffer.allocate(32767)
+            val packet = ByteArray(32767)
+
+            // Like this `Executors.newCachedThreadPool()`, except with an upper limit
+            val executor = ThreadPoolExecutor(0, 16, 60L, TimeUnit.SECONDS, SynchronousQueue<Runnable>())
 
             // We keep forwarding packets till something goes wrong.
             while (true) {
                 // Read the outgoing packet from the input stream.
                 Log.i(TAG, "WAITING FOR PACKET!")
-                val length = in_fd.read(packet.array())
-                var out_data_to_write: ByteArray? = null
-
+                val length = in_fd.read(packet)
                 if (length == 0) {
-                    continue
+                    // TODO: Possibley change to exception
+                    Log.w(TAG, "Got empty packet!")
                 }
 
-                try {
-                    // Write the outgoing packet to the tunnel.
-                    packet.limit(length)
-//                    Log.i(TAG, "Got packet!!")
-                    val parsed_pkt = IpV4Packet.newPacket(packet.array(), 0, length)
-//                    Log.i(TAG, "PARSED_PACKET = " + parsed_pkt)
+                val read_packet = packet.copyOfRange(0, length)
 
-                    val dns_data = (parsed_pkt.payload as UdpPacket).payload.rawData
-                    var msg = Message(dns_data)
-                    val dns_query_name = msg.question.name.toString(true)
-//                    Log.i(TAG, "DNS Name = " + dns_query_name)
+                // Packets received need to be written to this output stream.
+                val out_fd = FileOutputStream(mInterface!!.fileDescriptor)
 
-                    val response: ByteArray
-                    Log.i(TAG, "DNS Name = " + dns_query_name)
-                    var blocked = false
-                    var checkName = ""
-                    for (label in dns_query_name.split(".").reversed()) {
-                        if (checkName == "") {
-                            checkName = label.toLowerCase()
-                        } else {
-                            checkName = label.toLowerCase() + "." + checkName
-                        }
-                        if (mBlockedHosts.contains(checkName)) {
-                            Log.i(TAG, "Blocked on " + checkName)
-                            blocked = true
-                            break
-                        }
-                    }
-                    if (!blocked) {
-                        Log.i(TAG, "    PERMITTED!")
-                        val out_pkt = DatagramPacket(dns_data, 0, dns_data.size, mDnsServers[0], 53)
-                        Log.i(TAG, "SENDING TO REAL DNS SERVER!")
-                        dns_socket.send(out_pkt)
-                        Log.i(TAG, "RECEIVING FROM REAL DNS SERVER!")
+                // Packets to be sent to the real DNS server will need to be protected from the VPN
+                val dns_socket = DatagramSocket()
+                protect(dns_socket)
 
-                        val datagram_data = ByteArray(1024)
-                        val reply_pkt = DatagramPacket(datagram_data, datagram_data.size)
-                        dns_socket.receive(reply_pkt)
-//                        Log.i(TAG, "IN = " + reply_pkt)
-//                        Log.i(TAG, "adderess = " + reply_pkt.address + " port = " + reply_pkt.port)
-//                        logPacket(datagram_data)
-                        response = datagram_data
-                    } else {
-                        Log.i(TAG, "    BLOCKED!")
-                        msg.header.setFlag(Flags.QR.toInt())
-                        msg.addRecord(ARecord(msg.question.name,
-                                msg.question.dClass,
-                                10.toLong(),
-                                Inet4Address.getLocalHost()), Section.ANSWER)
-                        response = msg.toWire()
-                    }
-
-
-                    val udp_packet = parsed_pkt.payload as UdpPacket
-                    val out_packet = IpV4Packet.Builder(parsed_pkt)
-                            .srcAddr(parsed_pkt.header.dstAddr)
-                            .dstAddr(parsed_pkt.header.srcAddr)
-                            .correctChecksumAtBuild(true)
-                            .correctLengthAtBuild(true)
-                            .payloadBuilder(
-                                    UdpPacket.Builder(udp_packet)
-                                            .srcPort(udp_packet.header.dstPort)
-                                            .dstPort(udp_packet.header.srcPort)
-                                            .srcAddr(parsed_pkt.header.dstAddr)
-                                            .dstAddr(parsed_pkt.header.srcAddr)
-                                            .correctChecksumAtBuild(true)
-                                            .correctLengthAtBuild(true)
-                                            .payloadBuilder(
-                                                    UnknownPacket.Builder()
-                                                            .rawData(response)
-                                            )
-                            ).build()
-
-                    Log.i(TAG, "WRITING PACKET!" )
-//                    logPacket(out_packet.rawData)
-                    out_data_to_write = out_packet.rawData
-                } catch (e: Exception) {
-                    Log.e(TAG, "Got expcetion", e)
+                // Start a new thread to handle the DNS request
+                executor.execute {
+                    handleDnsRequest(read_packet, dns_socket, out_fd)
                 }
-
-                if (out_data_to_write != null) {
-                    out_fd.write(out_data_to_write)
-                }
-
-//                Log.i(TAG, "DONE!! ??")
 
 
             }
@@ -233,10 +160,90 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Got Exception", e)
-        } finally {
-            dns_socket.close()
         }
         return connected
+    }
+
+    private fun handleDnsRequest(packet: ByteArray, dnsSocket: DatagramSocket, outFd: FileOutputStream) {
+        try {
+            val parsed_pkt = IpV4Packet.newPacket(packet, 0, packet.size)
+            // Log.i(TAG, "PARSED_PACKET = " + parsed_pkt)
+
+            val dns_data = (parsed_pkt.payload as UdpPacket).payload.rawData
+            var msg = Message(dns_data)
+            val dns_query_name = msg.question.name.toString(true)
+            // Log.i(TAG, "DNS Name = " + dns_query_name)
+
+            val response: ByteArray
+            Log.i(TAG, "DNS Name = " + dns_query_name)
+            var blocked = false
+            var checkName = ""
+            for (label in dns_query_name.split(".").reversed()) {
+                if (checkName == "") {
+                    checkName = label.toLowerCase()
+                } else {
+                    checkName = label.toLowerCase() + "." + checkName
+                }
+                if (mBlockedHosts.contains(checkName)) {
+                    Log.i(TAG, "Blocked on " + checkName)
+                    blocked = true
+                    break
+                }
+            }
+            if (!blocked) {
+                Log.i(TAG, "    PERMITTED!")
+                val out_pkt = DatagramPacket(dns_data, 0, dns_data.size, mDnsServers[0], 53)
+                Log.i(TAG, "SENDING TO REAL DNS SERVER!")
+                dnsSocket.send(out_pkt)
+                Log.i(TAG, "RECEIVING FROM REAL DNS SERVER!")
+
+                val datagram_data = ByteArray(1024)
+                val reply_pkt = DatagramPacket(datagram_data, datagram_data.size)
+                dnsSocket.receive(reply_pkt)
+                // Log.i(TAG, "IN = " + reply_pkt)
+                // Log.i(TAG, "adderess = " + reply_pkt.address + " port = " + reply_pkt.port)
+                // logPacket(datagram_data)
+                response = datagram_data
+            } else {
+                Log.i(TAG, "    BLOCKED!")
+                msg.header.setFlag(Flags.QR.toInt())
+                msg.addRecord(ARecord(msg.question.name,
+                        msg.question.dClass,
+                        10.toLong(),
+                        Inet4Address.getLocalHost()), Section.ANSWER)
+                response = msg.toWire()
+            }
+
+
+            val udp_packet = parsed_pkt.payload as UdpPacket
+            val out_packet = IpV4Packet.Builder(parsed_pkt)
+                    .srcAddr(parsed_pkt.header.dstAddr)
+                    .dstAddr(parsed_pkt.header.srcAddr)
+                    .correctChecksumAtBuild(true)
+                    .correctLengthAtBuild(true)
+                    .payloadBuilder(
+                            UdpPacket.Builder(udp_packet)
+                                    .srcPort(udp_packet.header.dstPort)
+                                    .dstPort(udp_packet.header.srcPort)
+                                    .srcAddr(parsed_pkt.header.dstAddr)
+                                    .dstAddr(parsed_pkt.header.srcAddr)
+                                    .correctChecksumAtBuild(true)
+                                    .correctLengthAtBuild(true)
+                                    .payloadBuilder(
+                                            UnknownPacket.Builder()
+                                                    .rawData(response)
+                                    )
+                    ).build()
+
+            Log.i(TAG, "WRITING PACKET!" )
+            outFd.write(out_packet.rawData)
+        } catch (e: Exception) {
+            Log.e(TAG, "Got expcetion", e)
+        } finally {
+            dnsSocket.close()
+            outFd.close()
+        }
+
     }
 
     private fun getDnsServers() {
