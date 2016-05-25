@@ -18,9 +18,6 @@
 <resources>
     <string name="app">ToyVPN</string>
 
-    <string name="address">Server Address:</string>
-    <string name="port">Server Port:</string>
-    <string name="secret">Shared Secret:</string>
     <string name="connect">Connect!</string>
 
     <string name="connecting">ToyVPN is connecting...</string>
