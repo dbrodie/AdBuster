@@ -21,23 +21,23 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
 import android.util.Log
-import android.view.View
 
-class ToyVpnClient : Activity(), View.OnClickListener {
+class ToyVpnClient : Activity() {
+    companion object {
+        private val TAG = "ToyVpnClient"
+    }
+
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.form)
 
-        findViewById(R.id.connect).setOnClickListener(this)
-
-    }
-
-    override fun onClick(v: View) {
-        val intent = VpnService.prepare(this)
-        if (intent != null) {
-            startActivityForResult(intent, 0)
-        } else {
-            onActivityResult(0, Activity.RESULT_OK, null)
+        findViewById(R.id.connect).setOnClickListener {
+            val intent = VpnService.prepare(this)
+            if (intent != null) {
+                startActivityForResult(intent, 0)
+            } else {
+                onActivityResult(0, Activity.RESULT_OK, null)
+            }
         }
     }
 
