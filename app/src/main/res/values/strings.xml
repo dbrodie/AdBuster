@@ -19,6 +19,7 @@
     <string name="app">ToyVPN</string>
 
     <string name="connect">Connect!</string>
+    <string name="disconnect">Disconnect</string>
 
     <string name="connecting">ToyVPN is connecting...</string>
     <string name="connected">ToyVPN is connected!</string>

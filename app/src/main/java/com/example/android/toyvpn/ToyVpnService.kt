@@ -38,18 +38,41 @@ import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
+enum class Command {
+    START, STOP
+}
+
 class ToyVpnService : VpnService(), Handler.Callback, Runnable {
     companion object {
         private val TAG = "ToyVpnService"
     }
 
+    // TODO: There must be a better way in kotlin to do this
+    private val commandValue = mapOf(
+        Pair(Command.START.ordinal, Command.START),
+        Pair(Command.STOP.ordinal, Command.STOP)
+    )
+
     private var mHandler: Handler? = null
     private var mThread: Thread? = null
+    private var mInterface: ParcelFileDescriptor? = null
+    private var m_in_fd: InterruptibleFileInputStream? = null
 
     private var mDnsServers: List<InetAddress> = listOf()
     private var mBlockedHosts: Set<String> = setOf()
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
+        Log.i(TAG, "onStartCommand")
+//        startVpn()
+        when (commandValue[intent.getIntExtra("COMMAND", Command.START.ordinal)]) {
+            Command.START -> startVpn()
+            Command.STOP -> stopVpn()
+        }
+
+        return Service.START_STICKY
+    }
+
+    private fun startVpn() {
         // The handler is only used to show messages.
         if (mHandler == null) {
             mHandler = Handler(this)
@@ -61,11 +84,18 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
         // Start a new session by creating a new thread.
         mThread = Thread(this, "ToyVpnThread")
         mThread?.start()
-        return Service.START_STICKY
     }
 
+    private fun stopVpn() {
+        Log.i(TAG, "Stopping VPN!")
+        m_in_fd!!.interrupt()
+        stopSelf()
+    }
+
+
     override fun onDestroy() {
-        mThread?.interrupt()
+        Log.i(TAG, "Destroyed, shutting down")
+        stopVpn()
     }
 
     override fun handleMessage(message: Message?): Boolean {
@@ -102,13 +132,16 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
     private fun runVpn() {
         // Authenticate and configure the virtual network interface.
         val pfd = configure()
+        mInterface = pfd
+
+        Log.i(TAG, "FD = " + mInterface!!.fd)
 
         try {
             // Now we are connected. Set the flag and show the message.
             mHandler!!.sendEmptyMessage(R.string.connected)
 
             // Packets to be sent are queued in this input stream.
-            val in_fd = FileInputStream(pfd.fileDescriptor)
+            m_in_fd = InterruptibleFileInputStream(pfd.fileDescriptor)
 
             // Allocate the buffer for a single packet.
             val packet = ByteArray(32767)
@@ -120,7 +153,8 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
             while (true) {
                 // Read the outgoing packet from the input stream.
                 Log.i(TAG, "WAITING FOR PACKET!")
-                val length = in_fd.read(packet)
+                val length = m_in_fd!!.read(packet)
+                Log.i(TAG, "DONE WAITING FOR PACKET!")
                 if (length == 0) {
                     // TODO: Possibly change to exception
                     Log.w(TAG, "Got empty packet!")
@@ -140,12 +174,14 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
                     handleDnsRequest(read_packet, dns_socket, out_fd)
                 }
             }
-        } catch (e: InterruptedException) {
-            throw e
+        } catch (e: InterruptibleFileInputStream.InterruptedStreamException) {
+            Log.i(TAG, "Told to stop VPN")
         } catch (e: Exception) {
             Log.e(TAG, "Got Exception", e)
+            throw e
         } finally {
             pfd.close()
+            mInterface = null
         }
     }
 

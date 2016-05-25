@@ -22,7 +22,15 @@
             android:orientation="vertical"
             android:padding="3mm">
 
-        <Button style="@style/item" android:id="@+id/connect" android:text="@string/connect"/>
+        <Button
+            style="@style/item"
+            android:id="@+id/connect"
+            android:text="@string/connect" />
+
+        <Button
+            style="@style/item"
+            android:id="@+id/disconnect"
+            android:text="@string/disconnect" />
 
     </LinearLayout>
 </ScrollView>
