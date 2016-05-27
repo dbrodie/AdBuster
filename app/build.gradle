@@ -44,6 +44,7 @@ repositories {
 }
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    compile 'com.android.support:support-v4:23.4.0'
     compile 'org.pcap4j:pcap4j-core:1.6.4'
     compile 'org.pcap4j:pcap4j-packetfactory-propertiesbased:1.6.4'
     compile 'org.slf4j:slf4j-android:1.7.21'

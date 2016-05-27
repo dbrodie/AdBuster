@@ -16,6 +16,7 @@
 
 package com.example.android.toyvpn
 
+import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
@@ -24,6 +25,7 @@ import android.net.VpnService
 import android.os.Handler
 import android.os.Message
 import android.os.ParcelFileDescriptor
+import android.support.v4.app.NotificationCompat
 import android.util.Log
 import android.widget.Toast
 import org.pcap4j.packet.*
@@ -55,6 +57,7 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
     private var mHandler: Handler? = null
     private var mThread: Thread? = null
+    private var mNotification: Notification? = null
     private var mInterface: ParcelFileDescriptor? = null
     private var m_in_fd: InterruptibleFileInputStream? = null
 
@@ -65,18 +68,27 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
         Log.i(TAG, "onStartCommand")
 //        startVpn()
         when (commandValue[intent.getIntExtra("COMMAND", Command.START.ordinal)]) {
-            Command.START -> startVpn()
+            Command.START -> startVpn(intent.getParcelableExtra<PendingIntent>("NOTIFICATION_INTENT"))
             Command.STOP -> stopVpn()
         }
 
         return Service.START_STICKY
     }
 
-    private fun startVpn() {
+    private fun startVpn(notificationIntent: PendingIntent) {
         // The handler is only used to show messages.
         if (mHandler == null) {
             mHandler = Handler(this)
         }
+
+        mNotification = NotificationCompat.Builder(this)
+            .setSmallIcon(R.drawable.ic_vpn_notification)
+            .setContentTitle("Busting Ads!")
+            .setContentText("I ain't 'fraid of no ads!")
+            .setContentIntent(notificationIntent)
+            .build()
+
+        startForeground(10, mNotification)
 
         // Stop the previous session by interrupting the thread.
         mThread?.interrupt()

@@ -17,6 +17,7 @@
 package com.example.android.toyvpn
 
 import android.app.Activity
+import android.app.PendingIntent
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
@@ -53,6 +54,9 @@ class ToyVpnClient : Activity() {
         if (result == Activity.RESULT_OK) {
             val intent = Intent(this, ToyVpnService::class.java)
             intent.putExtra("COMMAND", Command.START.ordinal)
+            intent.putExtra("NOTIFICATION_INTENT",
+                PendingIntent.getActivity(this, 0,
+                    Intent(this, ToyVpnClient::class.java), 0))
             startService(intent)
         }
     }
