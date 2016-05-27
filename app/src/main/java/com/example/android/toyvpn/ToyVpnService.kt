@@ -31,7 +31,6 @@ import android.widget.Toast
 import org.pcap4j.packet.*
 import org.xbill.DNS.*
 
-import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.net.*
