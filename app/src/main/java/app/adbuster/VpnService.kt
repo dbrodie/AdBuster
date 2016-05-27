@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.example.android.toyvpn
+package app.adbuster
 
 import android.app.Notification
 import android.app.PendingIntent
@@ -353,7 +353,7 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
         // Create a new interface using the builder and save the parameters.
         val pfd = builder.setSession("@@AdBlockVpn").setConfigureIntent(
-                PendingIntent.getActivity(this, 1, Intent(this, ToyVpnClient::class.java),
+                PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java),
                         PendingIntent.FLAG_CANCEL_CURRENT)
             ).establish()
         Log.i(TAG, "Configured")

@@ -1,4 +1,4 @@
-package com.example.android.toyvpn
+package app.adbuster
 
 import java.io.FileDescriptor
 import java.io.FileInputStream

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.example.android.toyvpn
+package app.adbuster
 
 import android.app.Activity
 import android.app.PendingIntent
@@ -23,9 +23,9 @@ import android.net.VpnService
 import android.os.Bundle
 import android.util.Log
 
-class ToyVpnClient : Activity() {
+class MainActivity : Activity() {
     companion object {
-        private val TAG = "ToyVpnClient"
+        private val TAG = "MainActivity"
     }
 
     public override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,7 +37,7 @@ class ToyVpnClient : Activity() {
             if (intent != null) {
                 startActivityForResult(intent, 0)
             } else {
-                onActivityResult(0, Activity.RESULT_OK, null)
+                onActivityResult(0, RESULT_OK, null)
             }
         }
 
@@ -51,12 +51,12 @@ class ToyVpnClient : Activity() {
     }
 
     override fun onActivityResult(request: Int, result: Int, data: Intent?) {
-        if (result == Activity.RESULT_OK) {
+        if (result == RESULT_OK) {
             val intent = Intent(this, ToyVpnService::class.java)
             intent.putExtra("COMMAND", Command.START.ordinal)
             intent.putExtra("NOTIFICATION_INTENT",
                 PendingIntent.getActivity(this, 0,
-                    Intent(this, ToyVpnClient::class.java), 0))
+                        Intent(this, MainActivity::class.java), 0))
             startService(intent)
         }
     }

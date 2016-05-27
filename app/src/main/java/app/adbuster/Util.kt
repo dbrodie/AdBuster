@@ -1,4 +1,4 @@
-package com.example.android.toyvpn
+package app.adbuster
 
 fun toHexString(ba: ByteArray) : String {
     val str = StringBuilder()
