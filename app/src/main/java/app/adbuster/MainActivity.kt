@@ -44,7 +44,7 @@ class MainActivity : Activity() {
         findViewById(R.id.disconnect).setOnClickListener {
             Log.i(TAG, "Attempting to disconnect")
 
-            val intent = Intent(this, ToyVpnService::class.java)
+            val intent = Intent(this, VpnService::class.java)
             intent.putExtra("COMMAND", Command.STOP.ordinal)
             startService(intent)
         }
@@ -52,7 +52,7 @@ class MainActivity : Activity() {
 
     override fun onActivityResult(request: Int, result: Int, data: Intent?) {
         if (result == RESULT_OK) {
-            val intent = Intent(this, ToyVpnService::class.java)
+            val intent = Intent(this, VpnService::class.java)
             intent.putExtra("COMMAND", Command.START.ordinal)
             intent.putExtra("NOTIFICATION_INTENT",
                 PendingIntent.getActivity(this, 0,

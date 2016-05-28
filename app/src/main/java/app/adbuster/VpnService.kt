@@ -43,9 +43,9 @@ enum class Command {
     START, STOP
 }
 
-class ToyVpnService : VpnService(), Handler.Callback, Runnable {
+class VpnService : VpnService(), Handler.Callback, Runnable {
     companion object {
-        private val TAG = "ToyVpnService"
+        private val TAG = "VpnService"
     }
 
     // TODO: There must be a better way in kotlin to do this
@@ -82,8 +82,6 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
 
         mNotification = NotificationCompat.Builder(this)
             .setSmallIcon(R.drawable.ic_vpn_notification)
-            .setContentTitle("Busting Ads!")
-            .setContentText("I ain't 'fraid of no ads!")
             .setContentIntent(notificationIntent)
             .build()
 
@@ -93,7 +91,7 @@ class ToyVpnService : VpnService(), Handler.Callback, Runnable {
         mThread?.interrupt()
 
         // Start a new session by creating a new thread.
-        mThread = Thread(this, "ToyVpnThread")
+        mThread = Thread(this, "AdBusterThread")
         mThread?.start()
     }
 

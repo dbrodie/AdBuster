@@ -16,12 +16,12 @@
  -->
 
 <resources>
-    <string name="app">ToyVPN</string>
+    <string name="app">Ad Buster</string>
 
     <string name="connect">Connect!</string>
     <string name="disconnect">Disconnect</string>
 
-    <string name="connecting">ToyVPN is connecting...</string>
-    <string name="connected">ToyVPN is connected!</string>
-    <string name="disconnected">ToyVPN is disconnected!</string>
+    <string name="connecting">Ad Buster is connecting...</string>
+    <string name="connected">Ad Buster is connected!</string>
+    <string name="disconnected">Ad Buster is disconnected!</string>
 </resources>

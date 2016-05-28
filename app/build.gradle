@@ -6,9 +6,11 @@ android {
     buildToolsVersion "23.0.2"
 
     defaultConfig {
-        applicationId "com.example.android.toyvpn"
+        applicationId "app.adbuster"
         minSdkVersion 21
         targetSdkVersion 21
+        versionName "0.0.1"
+        versionCode 1
     }
 
     buildTypes {
