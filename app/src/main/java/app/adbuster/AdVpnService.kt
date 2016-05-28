@@ -27,7 +27,7 @@ enum class Command {
     START, STOP
 }
 
-class VpnService : VpnService(), Handler.Callback, Runnable {
+class AdVpnService : VpnService(), Handler.Callback, Runnable {
     companion object {
         private val TAG = "VpnService"
     }

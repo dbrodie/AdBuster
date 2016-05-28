@@ -30,7 +30,7 @@
             </intent-filter>
         </activity>
 
-        <service android:name=".VpnService"
+        <service android:name=".AdVpnService"
                 android:permission="android.permission.BIND_VPN_SERVICE">
             <intent-filter>
                 <action android:name="android.net.VpnService"/>
