@@ -49,7 +49,6 @@ class VpnService : VpnService(), Handler.Callback, Runnable {
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         Log.i(TAG, "onStartCommand")
-//        startVpn()
         when (commandValue[intent.getIntExtra("COMMAND", Command.START.ordinal)]) {
             Command.START -> startVpn(intent.getParcelableExtra<PendingIntent>("NOTIFICATION_INTENT"))
             Command.STOP -> stopVpn()
