@@ -82,6 +82,8 @@ class VpnService : VpnService(), Handler.Callback, Runnable {
 
         mNotification = NotificationCompat.Builder(this)
             .setSmallIcon(R.drawable.ic_vpn_notification)
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(getString(R.string.notification_content))
             .setContentIntent(notificationIntent)
             .build()
 
