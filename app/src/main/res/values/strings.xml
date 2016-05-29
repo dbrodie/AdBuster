@@ -18,8 +18,8 @@
 <resources>
     <string name="app">Ad Buster</string>
 
-    <string name="connect">Connect!</string>
-    <string name="disconnect">Disconnect</string>
+    <string name="start">Start Ad Buster</string>
+    <string name="stop">Stop Ad Buster</string>
 
     <string name="connecting">Ad Buster is connecting...</string>
     <string name="connected">Ad Buster is connected!</string>

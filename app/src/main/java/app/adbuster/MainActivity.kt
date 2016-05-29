@@ -16,7 +16,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.form)
 
-        findViewById(R.id.connect).setOnClickListener {
+        findViewById(R.id.start).setOnClickListener {
             val intent = VpnService.prepare(this)
             if (intent != null) {
                 startActivityForResult(intent, 0)
@@ -25,7 +25,7 @@ class MainActivity : Activity() {
             }
         }
 
-        findViewById(R.id.disconnect).setOnClickListener {
+        findViewById(R.id.stop).setOnClickListener {
             Log.i(TAG, "Attempting to disconnect")
 
             val intent = Intent(this, AdVpnService::class.java)

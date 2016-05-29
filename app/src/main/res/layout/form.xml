@@ -25,12 +25,12 @@
         <Button
             style="@style/item"
             android:id="@+id/connect"
-            android:text="@string/connect" />
+            android:text="@string/start" />
 
         <Button
             style="@style/item"
             android:id="@+id/disconnect"
-            android:text="@string/disconnect" />
+            android:text="@string/stop" />
 
     </LinearLayout>
 </ScrollView>
