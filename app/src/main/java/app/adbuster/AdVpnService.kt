@@ -68,6 +68,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(getString(R.string.notification_content))
             .setContentIntent(notificationIntent)
+            .setPriority(Notification.PRIORITY_MIN)
             .build()
 
         startForeground(10, mNotification)
