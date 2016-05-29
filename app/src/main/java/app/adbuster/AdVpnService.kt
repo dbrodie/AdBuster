@@ -45,7 +45,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
     private var m_in_fd: InterruptibleFileInputStream? = null
 
     private var mDnsServers: List<InetAddress> = listOf()
-    private var mBlockedHosts: Set<String> = setOf()
+    private var mBlockedHosts: Set<String>? = null
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         Log.i(TAG, "onStartCommand")
@@ -192,7 +192,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
             val response: ByteArray
             Log.i(TAG, "DNS Name = $dns_query_name")
 
-            if (!mBlockedHosts.contains(dns_query_name)) {
+            if (!mBlockedHosts!!.contains(dns_query_name)) {
                 Log.i(TAG, "    PERMITTED!")
                 val out_pkt = DatagramPacket(dns_data, 0, dns_data.size, mDnsServers[0], 53)
                 Log.i(TAG, "SENDING TO REAL DNS SERVER!")
@@ -261,6 +261,12 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
     }
 
     private fun loadBlockedHosts() {
+        // Don't load the hosts more than once (temporary til we have dynamic lists)
+        if (mBlockedHosts != null) {
+            Log.i(TAG, "Block list not loaded")
+            return
+        }
+
         Log.i(TAG, "Loading block list")
         val blockedHosts : MutableSet<String> = mutableSetOf()
 
@@ -286,7 +292,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         }
 
         mBlockedHosts = blockedHosts
-        Log.i(TAG, "Loaded ${mBlockedHosts.size} blocked hosts")
+        Log.i(TAG, "Loaded ${mBlockedHosts!!.size} blocked hosts")
     }
 
     private fun logPacket(packet: ByteArray) = logPacket(packet, 0, packet.size)
