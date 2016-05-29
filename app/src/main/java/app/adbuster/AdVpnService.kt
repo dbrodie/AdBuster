@@ -27,6 +27,13 @@ enum class Command {
     START, STOP
 }
 
+const val VPN_STATUS_STARTING = 0
+const val VPN_STATUS_RUNNING = 1
+const val VPN_STATUS_STOPPING = 2
+const val VPN_STATUS_WAITING_FOR_NETWORK = 3
+
+const private val VPN_MSG_STATUS_UPDATE = 0
+
 class AdVpnService : VpnService(), Handler.Callback, Runnable {
     companion object {
         private val TAG = "VpnService"
@@ -40,7 +47,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
 
     private var mHandler: Handler? = null
     private var mThread: Thread? = null
-    private var mNotification: Notification? = null
+    private var mNotificationIntent: PendingIntent? = null
     private var mInterface: ParcelFileDescriptor? = null
     private var m_in_fd: InterruptibleFileInputStream? = null
 
@@ -57,21 +64,34 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         return Service.START_STICKY
     }
 
+    private fun updateNotification(vpnStatus: Int) {
+        val text = getString(when(vpnStatus) {
+            VPN_STATUS_STARTING -> R.string.notification_starting
+            VPN_STATUS_RUNNING -> R.string.notification_running
+            VPN_STATUS_STOPPING -> R.string.notification_stopping
+            VPN_STATUS_WAITING_FOR_NETWORK -> R.string.notification_waiting_for_net
+            else -> throw IllegalArgumentException("Invalid vpnStatus value ($vpnStatus)")
+        })
+        val notification = NotificationCompat.Builder(this)
+                .setSmallIcon(R.drawable.ic_vpn_notification)
+                .setContentTitle(getString(R.string.notification_title))
+                .setContentText(text)
+                .setContentIntent(mNotificationIntent)
+                .setPriority(Notification.PRIORITY_MIN)
+                .build()
+
+        startForeground(10, notification)
+    }
+
     private fun startVpn(notificationIntent: PendingIntent) {
         // The handler is only used to show messages.
         if (mHandler == null) {
             mHandler = Handler(this)
         }
 
-        mNotification = NotificationCompat.Builder(this)
-            .setSmallIcon(R.drawable.ic_vpn_notification)
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText(getString(R.string.notification_content))
-            .setContentIntent(notificationIntent)
-            .setPriority(Notification.PRIORITY_MIN)
-            .build()
+        mNotificationIntent = notificationIntent
+        updateNotification(VPN_STATUS_STARTING)
 
-        startForeground(10, mNotification)
 
         // Stop the previous session by interrupting the thread.
         mThread?.interrupt()
@@ -94,8 +114,13 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
     }
 
     override fun handleMessage(message: Message?): Boolean {
-        if (message != null) {
-            Toast.makeText(this, message.what, Toast.LENGTH_SHORT).show()
+        if (message == null) {
+            return true
+        }
+
+        when (message.what) {
+            VPN_MSG_STATUS_UPDATE -> updateNotification(message.arg1)
+            else -> throw IllegalArgumentException("Invalid message with what = ${message.what}")
         }
         return true
     }
@@ -110,7 +135,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
             // Get the current DNS servers before starting the VPN
             getDnsServers()
 
-            mHandler!!.sendEmptyMessage(R.string.connecting)
+            mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_STARTING, 0))
 
             runVpn()
 
@@ -118,7 +143,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         } catch (e: Exception) {
             Log.e(TAG, "Exception in run() ", e)
         } finally {
-            mHandler!!.sendEmptyMessage(R.string.disconnected)
+            mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_STOPPING, 0))
             Log.i(TAG, "Exiting")
         }
     }
@@ -132,9 +157,6 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         Log.i(TAG, "FD = " + mInterface!!.fd)
 
         try {
-            // Now we are connected. Set the flag and show the message.
-            mHandler!!.sendEmptyMessage(R.string.connected)
-
             // Packets to be sent are queued in this input stream.
             m_in_fd = InterruptibleFileInputStream(pfd.fileDescriptor)
 
@@ -143,6 +165,9 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
 
             // Like this `Executors.newCachedThreadPool()`, except with an upper limit
             val executor = ThreadPoolExecutor(0, 16, 60L, TimeUnit.SECONDS, LinkedBlockingQueue<Runnable>())
+
+            // Now we are connected. Set the flag and show the message.
+            mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_RUNNING, 0))
 
             // We keep forwarding packets till something goes wrong.
             while (true) {

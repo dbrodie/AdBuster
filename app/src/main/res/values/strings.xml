@@ -26,5 +26,8 @@
     <string name="disconnected">Ad Buster is disconnected!</string>
 
     <string name="notification_title">Busting Ads!</string>
-    <string name="notification_content">I ain\'t \'fraid of no ads!</string>
+    <string name="notification_starting">Starting Ad Buster</string>
+    <string name="notification_running">I ain\'t \'fraid of no ads!</string>
+    <string name="notification_stopping">Stopping</string>
+    <string name="notification_waiting_for_net">Waiting for network</string>
 </resources>

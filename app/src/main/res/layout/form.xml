@@ -24,12 +24,12 @@
 
         <Button
             style="@style/item"
-            android:id="@+id/connect"
+            android:id="@+id/start"
             android:text="@string/start" />
 
         <Button
             style="@style/item"
-            android:id="@+id/disconnect"
+            android:id="@+id/stop"
             android:text="@string/stop" />
 
     </LinearLayout>
