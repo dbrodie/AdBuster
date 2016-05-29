@@ -19,7 +19,7 @@ import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.net.*
 import java.nio.ByteBuffer
-import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
@@ -141,7 +141,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
             val packet = ByteArray(32767)
 
             // Like this `Executors.newCachedThreadPool()`, except with an upper limit
-            val executor = ThreadPoolExecutor(0, 16, 60L, TimeUnit.SECONDS, SynchronousQueue<Runnable>())
+            val executor = ThreadPoolExecutor(0, 16, 60L, TimeUnit.SECONDS, LinkedBlockingQueue<Runnable>())
 
             // We keep forwarding packets till something goes wrong.
             while (true) {
