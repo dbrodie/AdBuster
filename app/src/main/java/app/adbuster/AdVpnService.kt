@@ -203,6 +203,8 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
 
                     Log.i(TAG, "Told to stop")
                     break
+                } catch (e: InterruptedException) {
+                    throw e
                 } catch (e: Exception) {
                     // If an exception was thrown, show to the user and try again
                     mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_ERROR_RECONNECTING, e))
@@ -213,6 +215,8 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
             }
 
             Log.i(TAG, "Stopped")
+        } catch (e: InterruptedException) {
+            Log.i(TAG, "Vpn Thread interrupted")
         } catch (e: Exception) {
             Log.e(TAG, "Exception in run() ", e)
         } finally {
@@ -276,6 +280,8 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
                     handleDnsRequest(read_packet, dns_socket, out_fd)
                 }
             }
+        } catch (e: InterruptedException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Got Exception", e)
             throw e
