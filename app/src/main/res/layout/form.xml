@@ -24,13 +24,35 @@
 
         <Button
             style="@style/item"
-            android:id="@+id/connect"
-            android:text="@string/connect" />
+            android:id="@+id/start"
+            android:text="@string/start" />
 
         <Button
             style="@style/item"
-            android:id="@+id/disconnect"
-            android:text="@string/disconnect" />
+            android:id="@+id/stop"
+            android:text="@string/stop" />
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?android:attr/textAppearanceMedium"
+                android:text="@string/status_label"
+                android:id="@+id/text_status_label"
+                android:layout_marginEnd="5dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?android:attr/textAppearanceMedium"
+                android:text="@string/notification_stopped"
+                android:id="@+id/text_status" />
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>

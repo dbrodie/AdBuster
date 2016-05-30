@@ -18,13 +18,23 @@
 <resources>
     <string name="app">Ad Buster</string>
 
-    <string name="connect">Connect!</string>
-    <string name="disconnect">Disconnect</string>
+    <string name="start">Start Ad Buster</string>
+    <string name="stop">Stop Ad Buster</string>
 
     <string name="connecting">Ad Buster is connecting...</string>
     <string name="connected">Ad Buster is connected!</string>
     <string name="disconnected">Ad Buster is disconnected!</string>
 
     <string name="notification_title">Busting Ads!</string>
-    <string name="notification_content">I ain\'t \'fraid of no ads!</string>
+    <string name="notification_starting">Starting Ad Buster</string>
+    <string name="notification_running">I ain\'t \'fraid of no ads!</string>
+    <string name="notification_stopping">Stopping</string>
+    <string name="notification_waiting_for_net">Waiting for network</string>
+    <string name="notification_reconnecting">Reconnecting...</string>
+    <string name="notification_reconnecting_error">Reconnecting...</string>
+    <string name="notification_stopped">Not running</string>
+
+    <string name="toast_reconnecting_error">Exception happened in service, reconnecting in 2s</string>
+
+    <string name="status_label">Status:</string>
 </resources>

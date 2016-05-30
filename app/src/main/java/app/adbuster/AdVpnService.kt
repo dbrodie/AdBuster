@@ -3,13 +3,17 @@ package app.adbuster
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.VpnService
 import android.os.Handler
 import android.os.Message
 import android.os.ParcelFileDescriptor
 import android.support.v4.app.NotificationCompat
+import android.support.v4.content.LocalBroadcastManager
 import android.util.Log
 import android.widget.Toast
 import org.pcap4j.packet.*
@@ -27,6 +31,20 @@ enum class Command {
     START, STOP
 }
 
+const val VPN_STATUS_STARTING = 0
+const val VPN_STATUS_RUNNING = 1
+const val VPN_STATUS_STOPPING = 2
+const val VPN_STATUS_WAITING_FOR_NETWORK = 3
+const val VPN_STATUS_RECONNECTING = 4
+const val VPN_STATUS_RECONNECTING_ERROR = 5
+const val VPN_STATUS_STOPPED = 6
+
+const private val VPN_MSG_STATUS_UPDATE = 0
+const private val VPN_MSG_ERROR_RECONNECTING = 1
+
+const val VPN_UPDATE_STATUS_INTENT = "app.adbuster.VPN_UPDATE_STATUS"
+const val VPN_UPDATE_STATUS_EXTRA = "VPN_STATUS"
+
 class AdVpnService : VpnService(), Handler.Callback, Runnable {
     companion object {
         private val TAG = "VpnService"
@@ -38,9 +56,11 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         Pair(Command.STOP.ordinal, Command.STOP)
     )
 
+    private var mConnectivityChangedReceiver : BroadcastReceiver? = null
+
     private var mHandler: Handler? = null
     private var mThread: Thread? = null
-    private var mNotification: Notification? = null
+    private var mNotificationIntent: PendingIntent? = null
     private var mInterface: ParcelFileDescriptor? = null
     private var m_in_fd: InterruptibleFileInputStream? = null
 
@@ -57,36 +77,105 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         return Service.START_STICKY
     }
 
+    private fun updateVpnStatus(vpnStatus: Int) {
+        val text_id = when(vpnStatus) {
+            VPN_STATUS_STARTING -> R.string.notification_starting
+            VPN_STATUS_RUNNING -> R.string.notification_running
+            VPN_STATUS_STOPPING -> R.string.notification_stopping
+            VPN_STATUS_WAITING_FOR_NETWORK -> R.string.notification_waiting_for_net
+            VPN_STATUS_RECONNECTING -> R.string.notification_reconnecting
+            VPN_STATUS_RECONNECTING_ERROR -> R.string.notification_reconnecting_error
+            VPN_STATUS_STOPPED -> R.string.notification_stopped
+            else -> throw IllegalArgumentException("Invalid vpnStatus value ($vpnStatus)")
+        }
+        val notification = NotificationCompat.Builder(this)
+                .setSmallIcon(R.drawable.ic_vpn_notification)
+                .setContentTitle(getString(R.string.notification_title))
+                .setContentText(getString(text_id))
+                .setContentIntent(mNotificationIntent)
+                .setPriority(Notification.PRIORITY_MIN)
+                .build()
+
+        startForeground(10, notification)
+
+        var intent = Intent(VPN_UPDATE_STATUS_INTENT)
+        intent.putExtra(VPN_UPDATE_STATUS_EXTRA, text_id)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+    }
+
     private fun startVpn(notificationIntent: PendingIntent) {
         // The handler is only used to show messages.
         if (mHandler == null) {
             mHandler = Handler(this)
         }
 
-        mNotification = NotificationCompat.Builder(this)
-            .setSmallIcon(R.drawable.ic_vpn_notification)
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText(getString(R.string.notification_content))
-            .setContentIntent(notificationIntent)
-            .setPriority(Notification.PRIORITY_MIN)
-            .build()
+        mNotificationIntent = notificationIntent
+        updateVpnStatus(VPN_STATUS_STARTING)
 
-        startForeground(10, mNotification)
+        mConnectivityChangedReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.getIntExtra(ConnectivityManager.EXTRA_NETWORK_TYPE, 0) == ConnectivityManager.TYPE_VPN) {
+                    Log.i(TAG, "Ignoring connectivity changed for our own network")
+                    return
+                }
 
-        // Stop the previous session by interrupting the thread.
-        mThread?.interrupt()
+                if (intent.action != ConnectivityManager.CONNECTIVITY_ACTION) {
+                    Log.e(TAG, "Got bad intent on connectivity changed " + intent.action)
+                }
+                if (intent.getBooleanExtra(ConnectivityManager.EXTRA_NO_CONNECTIVITY, false)) {
+                    Log.i(TAG, "Connectivity changed to no connectivity, wait for a network")
+                    waitForNetVpn()
+                } else {
+                    Log.i(TAG, "Network changed, try to reconnect")
+                    reconnect()
+                }
 
-        // Start a new session by creating a new thread.
+
+            }
+        }
+        registerReceiver(mConnectivityChangedReceiver, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
+
+        restartVpnThread()
+    }
+
+    private fun restartVpnThread() {
+        Log.i(TAG, "Restarting Vpn Thread")
+        stopVpnThread()
         mThread = Thread(this, "AdBusterThread")
         mThread?.start()
+        Log.i(TAG, "Vpn Thread started")
+    }
+
+    private fun stopVpnThread() {
+        Log.i(TAG, "Stopping Vpn Thread")
+        mThread?.interrupt()
+        m_in_fd?.interrupt()
+        mThread?.join(2000)
+        if (mThread?.isAlive ?: false) {
+            Log.w(TAG, "Couldn't kill Vpn Thread")
+        }
+        mThread = null
+        Log.i(TAG, "Vpn Thread stopped")
+    }
+
+    private fun waitForNetVpn() {
+        stopVpnThread()
+        updateVpnStatus(VPN_STATUS_WAITING_FOR_NETWORK)
+    }
+
+    private fun reconnect() {
+        updateVpnStatus(VPN_STATUS_RECONNECTING)
+        restartVpnThread()
     }
 
     private fun stopVpn() {
-        Log.i(TAG, "Stopping VPN!")
-        m_in_fd!!.interrupt()
+        Log.i(TAG, "Stopping Service")
+        stopVpnThread()
+        mConnectivityChangedReceiver?.let { unregisterReceiver(it) }
+        mConnectivityChangedReceiver = null
+        updateVpnStatus(VPN_STATUS_STOPPED)
         stopSelf()
     }
-
 
     override fun onDestroy() {
         Log.i(TAG, "Destroyed, shutting down")
@@ -94,8 +183,17 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
     }
 
     override fun handleMessage(message: Message?): Boolean {
-        if (message != null) {
-            Toast.makeText(this, message.what, Toast.LENGTH_SHORT).show()
+        if (message == null) {
+            return true
+        }
+
+        when (message.what) {
+            VPN_MSG_STATUS_UPDATE -> updateVpnStatus(message.arg1)
+            VPN_MSG_ERROR_RECONNECTING -> {
+                Toast.makeText(this, R.string.toast_reconnecting_error, Toast.LENGTH_LONG).show()
+                updateVpnStatus(VPN_STATUS_RECONNECTING_ERROR)
+            }
+            else -> throw IllegalArgumentException("Invalid message with what = ${message.what}")
         }
         return true
     }
@@ -107,18 +205,35 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
             // Load the block list
             loadBlockedHosts()
 
-            // Get the current DNS servers before starting the VPN
-            getDnsServers()
+            mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_STARTING, 0))
 
-            mHandler!!.sendEmptyMessage(R.string.connecting)
+            // Try connecting the vpn continuously
+            while (true) {
+                try {
+                    // If the function returns, that means it was interrupted
+                    runVpn()
 
-            runVpn()
+                    Log.i(TAG, "Told to stop")
+                    break
+                } catch (e: InterruptedException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "Exception in vpn thread, reconnecting", e)
+                    // If an exception was thrown, show to the user and try again
+                    mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_ERROR_RECONNECTING, e))
+                }
+
+                // ...wait for 2 seconds and try again
+                Thread.sleep(2000)
+            }
 
             Log.i(TAG, "Stopped")
+        } catch (e: InterruptedException) {
+            Log.i(TAG, "Vpn Thread interrupted")
         } catch (e: Exception) {
             Log.e(TAG, "Exception in run() ", e)
         } finally {
-            mHandler!!.sendEmptyMessage(R.string.disconnected)
+            mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_STOPPING, 0))
             Log.i(TAG, "Exiting")
         }
     }
@@ -131,24 +246,30 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
 
         Log.i(TAG, "FD = " + mInterface!!.fd)
 
+        // Packets to be sent are queued in this input stream.
+        m_in_fd = InterruptibleFileInputStream(pfd.fileDescriptor)
+
+        // Allocate the buffer for a single packet.
+        val packet = ByteArray(32767)
+
+        // Like this `Executors.newCachedThreadPool()`, except with an upper limit
+        val executor = ThreadPoolExecutor(0, 16, 60L, TimeUnit.SECONDS, LinkedBlockingQueue<Runnable>())
+
         try {
             // Now we are connected. Set the flag and show the message.
-            mHandler!!.sendEmptyMessage(R.string.connected)
-
-            // Packets to be sent are queued in this input stream.
-            m_in_fd = InterruptibleFileInputStream(pfd.fileDescriptor)
-
-            // Allocate the buffer for a single packet.
-            val packet = ByteArray(32767)
-
-            // Like this `Executors.newCachedThreadPool()`, except with an upper limit
-            val executor = ThreadPoolExecutor(0, 16, 60L, TimeUnit.SECONDS, LinkedBlockingQueue<Runnable>())
+            mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_RUNNING, 0))
 
             // We keep forwarding packets till something goes wrong.
             while (true) {
                 // Read the outgoing packet from the input stream.
                 Log.i(TAG, "WAITING FOR PACKET!")
-                val length = m_in_fd!!.read(packet)
+                val length: Int
+                try {
+                    length = m_in_fd!!.read(packet)
+                } catch (e: InterruptibleFileInputStream.InterruptedStreamException) {
+                    Log.i(TAG, "Told to stop VPN")
+                    return
+                }
                 Log.i(TAG, "DONE WAITING FOR PACKET!")
                 if (length == 0) {
                     // TODO: Possibly change to exception
@@ -164,17 +285,21 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
                 val dns_socket = DatagramSocket()
                 protect(dns_socket)
 
+                Log.i(TAG, "Starting new thread to handle dns request")
+                Log.i(TAG, "Executing: ${executor.activeCount}")
+                Log.i(TAG, "Backlog: ${executor.queue.size}")
                 // Start a new thread to handle the DNS request
                 executor.execute {
                     handleDnsRequest(read_packet, dns_socket, out_fd)
                 }
             }
-        } catch (e: InterruptibleFileInputStream.InterruptedStreamException) {
-            Log.i(TAG, "Told to stop VPN")
+        } catch (e: InterruptedException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Got Exception", e)
             throw e
         } finally {
+            executor.shutdownNow()
             pfd.close()
             mInterface = null
         }
@@ -255,7 +380,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         val activeInfo = cm.activeNetworkInfo
         mDnsServers = cm.getLinkProperties(
                 cm.allNetworks.filter { val ni = cm.getNetworkInfo(it);
-                    ni.isConnected && ni.type == activeInfo.type && ni.subtype == activeInfo.subtype
+                    ni != null && ni.isConnected && ni.type == activeInfo.type && ni.subtype == activeInfo.subtype
                 }.first()
         ).dnsServers
         Log.i(TAG, "Got DNS servers = $mDnsServers")
@@ -264,7 +389,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
     private fun loadBlockedHosts() {
         // Don't load the hosts more than once (temporary til we have dynamic lists)
         if (mBlockedHosts != null) {
-            Log.i(TAG, "Block list not loaded")
+            Log.i(TAG, "Block list already loaded")
             return
         }
 
@@ -332,6 +457,9 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
     private fun configure(): ParcelFileDescriptor {
 
         Log.i(TAG, "Configuring")
+
+        // Get the current DNS servers before starting the VPN
+        getDnsServers()
 
         // Configure a builder while parsing the parameters.
         // TODO: Make this dynamic
