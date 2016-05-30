@@ -32,6 +32,9 @@
     <string name="notification_waiting_for_net">Waiting for network</string>
     <string name="notification_reconnecting">Reconnecting...</string>
     <string name="notification_reconnecting_error">Reconnecting...</string>
+    <string name="notification_stopped">Not running</string>
 
     <string name="toast_reconnecting_error">Exception happened in service, reconnecting in 2s</string>
+
+    <string name="status_label">Status:</string>
 </resources>

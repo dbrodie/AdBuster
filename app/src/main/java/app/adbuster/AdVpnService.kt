@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.Message
 import android.os.ParcelFileDescriptor
 import android.support.v4.app.NotificationCompat
+import android.support.v4.content.LocalBroadcastManager
 import android.util.Log
 import android.widget.Toast
 import org.pcap4j.packet.*
@@ -36,10 +37,13 @@ const val VPN_STATUS_STOPPING = 2
 const val VPN_STATUS_WAITING_FOR_NETWORK = 3
 const val VPN_STATUS_RECONNECTING = 4
 const val VPN_STATUS_RECONNECTING_ERROR = 5
+const val VPN_STATUS_STOPPED = 6
 
 const private val VPN_MSG_STATUS_UPDATE = 0
 const private val VPN_MSG_ERROR_RECONNECTING = 1
 
+const val VPN_UPDATE_STATUS_INTENT = "app.adbuster.VPN_UPDATE_STATUS"
+const val VPN_UPDATE_STATUS_EXTRA = "VPN_STATUS"
 class AdVpnService : VpnService(), Handler.Callback, Runnable {
     companion object {
         private val TAG = "VpnService"
@@ -72,25 +76,30 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         return Service.START_STICKY
     }
 
-    private fun updateNotification(vpnStatus: Int) {
-        val text = getString(when(vpnStatus) {
+    private fun updateVpnStatus(vpnStatus: Int) {
+        val text_id = when(vpnStatus) {
             VPN_STATUS_STARTING -> R.string.notification_starting
             VPN_STATUS_RUNNING -> R.string.notification_running
             VPN_STATUS_STOPPING -> R.string.notification_stopping
             VPN_STATUS_WAITING_FOR_NETWORK -> R.string.notification_waiting_for_net
             VPN_STATUS_RECONNECTING -> R.string.notification_reconnecting
             VPN_STATUS_RECONNECTING_ERROR -> R.string.notification_reconnecting_error
+            VPN_STATUS_STOPPED -> R.string.notification_stopped
             else -> throw IllegalArgumentException("Invalid vpnStatus value ($vpnStatus)")
-        })
+        }
         val notification = NotificationCompat.Builder(this)
                 .setSmallIcon(R.drawable.ic_vpn_notification)
                 .setContentTitle(getString(R.string.notification_title))
-                .setContentText(text)
+                .setContentText(getString(text_id))
                 .setContentIntent(mNotificationIntent)
                 .setPriority(Notification.PRIORITY_MIN)
                 .build()
 
         startForeground(10, notification)
+
+        var intent = Intent(VPN_UPDATE_STATUS_INTENT)
+        intent.putExtra(VPN_UPDATE_STATUS_EXTRA, text_id)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
     private fun startVpn(notificationIntent: PendingIntent) {
@@ -100,7 +109,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         }
 
         mNotificationIntent = notificationIntent
-        updateNotification(VPN_STATUS_STARTING)
+        updateVpnStatus(VPN_STATUS_STARTING)
 
         mConnectivityChangedReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
@@ -150,11 +159,11 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
 
     private fun waitForNetVpn() {
         stopVpnThread()
-        updateNotification(VPN_STATUS_WAITING_FOR_NETWORK)
+        updateVpnStatus(VPN_STATUS_WAITING_FOR_NETWORK)
     }
 
     private fun reconnect() {
-        updateNotification(VPN_STATUS_RECONNECTING)
+        updateVpnStatus(VPN_STATUS_RECONNECTING)
         restartVpnThread()
     }
 
@@ -162,6 +171,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         Log.i(TAG, "Stopping Service")
         stopVpnThread()
         unregisterReceiver(mConnectivityChangedReceiver)
+        updateVpnStatus(VPN_STATUS_STOPPED)
         stopSelf()
     }
 
@@ -176,10 +186,10 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         }
 
         when (message.what) {
-            VPN_MSG_STATUS_UPDATE -> updateNotification(message.arg1)
+            VPN_MSG_STATUS_UPDATE -> updateVpnStatus(message.arg1)
             VPN_MSG_ERROR_RECONNECTING -> {
                 Toast.makeText(this, R.string.toast_reconnecting_error, Toast.LENGTH_LONG).show()
-                updateNotification(VPN_STATUS_RECONNECTING_ERROR)
+                updateVpnStatus(VPN_STATUS_RECONNECTING_ERROR)
             }
             else -> throw IllegalArgumentException("Invalid message with what = ${message.what}")
         }
@@ -206,6 +216,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
                 } catch (e: InterruptedException) {
                     throw e
                 } catch (e: Exception) {
+                    Log.w(TAG, "Exception in vpn thread, reconnecting", e)
                     // If an exception was thrown, show to the user and try again
                     mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_ERROR_RECONNECTING, e))
                 }
