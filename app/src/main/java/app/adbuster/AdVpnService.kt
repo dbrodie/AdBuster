@@ -34,8 +34,11 @@ const val VPN_STATUS_STARTING = 0
 const val VPN_STATUS_RUNNING = 1
 const val VPN_STATUS_STOPPING = 2
 const val VPN_STATUS_WAITING_FOR_NETWORK = 3
+const val VPN_STATUS_RECONNECTING = 4
+const val VPN_STATUS_RECONNECTING_ERROR = 5
 
 const private val VPN_MSG_STATUS_UPDATE = 0
+const private val VPN_MSG_ERROR_RECONNECTING = 0
 
 class AdVpnService : VpnService(), Handler.Callback, Runnable {
     companion object {
@@ -47,6 +50,8 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         Pair(Command.START.ordinal, Command.START),
         Pair(Command.STOP.ordinal, Command.STOP)
     )
+
+    private var mConnectivityChangedReceiver : BroadcastReceiver? = null
 
     private var mHandler: Handler? = null
     private var mThread: Thread? = null
@@ -73,6 +78,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
             VPN_STATUS_RUNNING -> R.string.notification_running
             VPN_STATUS_STOPPING -> R.string.notification_stopping
             VPN_STATUS_WAITING_FOR_NETWORK -> R.string.notification_waiting_for_net
+            VPN_STATUS_RECONNECTING -> R.string.notification_reconnecting
             VPN_STATUS_RECONNECTING_ERROR -> R.string.notification_reconnecting_error
             else -> throw IllegalArgumentException("Invalid vpnStatus value ($vpnStatus)")
         })
@@ -96,21 +102,68 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         mNotificationIntent = notificationIntent
         updateNotification(VPN_STATUS_STARTING)
 
+        mConnectivityChangedReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.getIntExtra(ConnectivityManager.EXTRA_NETWORK_TYPE, 0) == ConnectivityManager.TYPE_VPN) {
+                    Log.i(TAG, "Ignoring connectivity changed for our own network")
+                    return
+                }
 
-        // Stop the previous session by interrupting the thread.
-        mThread?.interrupt()
+                if (intent.action != ConnectivityManager.CONNECTIVITY_ACTION) {
+                    Log.e(TAG, "Got bad intent on connectivity changed " + intent.action)
+                }
+                if (intent.getBooleanExtra(ConnectivityManager.EXTRA_NO_CONNECTIVITY, false)) {
+                    Log.i(TAG, "Connectivity changed to no connectivity, wait for a network")
+                    waitForNetVpn()
+                } else {
+                    Log.i(TAG, "Network changed, try to reconnect")
+                    reconnect()
+                }
 
-        // Start a new session by creating a new thread.
+
+            }
+        }
+        registerReceiver(mConnectivityChangedReceiver, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
+
+        restartVpnThread()
+    }
+
+    private fun restartVpnThread() {
+        Log.i(TAG, "Restarting Vpn Thread")
+        stopVpnThread()
         mThread = Thread(this, "AdBusterThread")
         mThread?.start()
+        Log.i(TAG, "Vpn Thread started")
+    }
+
+    private fun stopVpnThread() {
+        Log.i(TAG, "Stopping Vpn Thread")
+        mThread?.interrupt()
+        m_in_fd?.interrupt()
+        mThread?.join(2000)
+        if (mThread?.isAlive ?: false) {
+            Log.w(TAG, "Couldn't kill Vpn Thread")
+        }
+        mThread = null
+        Log.i(TAG, "Vpn Thread stopped")
+    }
+
+    private fun waitForNetVpn() {
+        stopVpnThread()
+        updateNotification(VPN_STATUS_WAITING_FOR_NETWORK)
+    }
+
+    private fun reconnect() {
+        updateNotification(VPN_STATUS_RECONNECTING)
+        restartVpnThread()
     }
 
     private fun stopVpn() {
-        Log.i(TAG, "Stopping VPN!")
-        m_in_fd!!.interrupt()
+        Log.i(TAG, "Stopping Service")
+        stopVpnThread()
+        unregisterReceiver(mConnectivityChangedReceiver)
         stopSelf()
     }
-
 
     override fun onDestroy() {
         Log.i(TAG, "Destroyed, shutting down")
