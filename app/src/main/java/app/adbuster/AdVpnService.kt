@@ -23,7 +23,7 @@ import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.net.*
 import java.nio.ByteBuffer
-import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
@@ -253,7 +253,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         val packet = ByteArray(32767)
 
         // Like this `Executors.newCachedThreadPool()`, except with an upper limit
-        val executor = ThreadPoolExecutor(0, 16, 60L, TimeUnit.SECONDS, LinkedBlockingQueue<Runnable>())
+        val executor = ThreadPoolExecutor(0, 32, 60L, TimeUnit.SECONDS, SynchronousQueue<Runnable>())
 
         try {
             // Now we are connected. Set the flag and show the message.
