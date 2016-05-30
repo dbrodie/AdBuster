@@ -44,6 +44,7 @@ const private val VPN_MSG_ERROR_RECONNECTING = 1
 
 const val VPN_UPDATE_STATUS_INTENT = "app.adbuster.VPN_UPDATE_STATUS"
 const val VPN_UPDATE_STATUS_EXTRA = "VPN_STATUS"
+
 class AdVpnService : VpnService(), Handler.Callback, Runnable {
     companion object {
         private val TAG = "VpnService"
@@ -388,7 +389,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
     private fun loadBlockedHosts() {
         // Don't load the hosts more than once (temporary til we have dynamic lists)
         if (mBlockedHosts != null) {
-            Log.i(TAG, "Block list not loaded")
+            Log.i(TAG, "Block list already loaded")
             return
         }
 
