@@ -38,7 +38,7 @@ const val VPN_STATUS_RECONNECTING = 4
 const val VPN_STATUS_RECONNECTING_ERROR = 5
 
 const private val VPN_MSG_STATUS_UPDATE = 0
-const private val VPN_MSG_ERROR_RECONNECTING = 0
+const private val VPN_MSG_ERROR_RECONNECTING = 1
 
 class AdVpnService : VpnService(), Handler.Callback, Runnable {
     companion object {
