@@ -379,7 +379,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         val activeInfo = cm.activeNetworkInfo
         mDnsServers = cm.getLinkProperties(
                 cm.allNetworks.filter { val ni = cm.getNetworkInfo(it);
-                    ni.isConnected && ni.type == activeInfo.type && ni.subtype == activeInfo.subtype
+                    ni != null && ni.isConnected && ni.type == activeInfo.type && ni.subtype == activeInfo.subtype
                 }.first()
         ).dnsServers
         Log.i(TAG, "Got DNS servers = $mDnsServers")
