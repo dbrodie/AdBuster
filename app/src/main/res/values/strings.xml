@@ -30,4 +30,7 @@
     <string name="notification_running">I ain\'t \'fraid of no ads!</string>
     <string name="notification_stopping">Stopping</string>
     <string name="notification_waiting_for_net">Waiting for network</string>
+    <string name="notification_reconnecting_error">Reconnecting...</string>
+
+    <string name="toast_reconnecting_error">Exception happened in service, reconnecting in 2s</string>
 </resources>
