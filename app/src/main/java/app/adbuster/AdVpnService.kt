@@ -170,7 +170,8 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
     private fun stopVpn() {
         Log.i(TAG, "Stopping Service")
         stopVpnThread()
-        unregisterReceiver(mConnectivityChangedReceiver)
+        mConnectivityChangedReceiver?.let { unregisterReceiver(it) }
+        mConnectivityChangedReceiver = null
         updateVpnStatus(VPN_STATUS_STOPPED)
         stopSelf()
     }
