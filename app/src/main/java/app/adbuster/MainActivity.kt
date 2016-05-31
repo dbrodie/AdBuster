@@ -12,6 +12,7 @@ import android.support.v4.content.LocalBroadcastManager
 import android.util.Log
 import android.widget.TextView
 import net.hockeyapp.android.CrashManager
+import kotlinx.android.synthetic.main.form.*
 
 class MainActivity : Activity() {
     companion object {
@@ -24,7 +25,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.form)
 
-        findViewById(R.id.start).setOnClickListener {
+        start.setOnClickListener {
             val intent = VpnService.prepare(this)
             if (intent != null) {
                 startActivityForResult(intent, 0)
@@ -33,7 +34,7 @@ class MainActivity : Activity() {
             }
         }
 
-        findViewById(R.id.stop).setOnClickListener {
+        stop.setOnClickListener {
             Log.i(TAG, "Attempting to disconnect")
 
             val intent = Intent(this, AdVpnService::class.java)
@@ -44,7 +45,7 @@ class MainActivity : Activity() {
         mVpnServiceBroadcastReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 val str_id = intent.getIntExtra(VPN_UPDATE_STATUS_EXTRA, R.string.notification_stopped)
-                (findViewById(R.id.text_status) as TextView).text = getString(str_id)
+                text_status.text = getString(str_id)
             }
         }
 
