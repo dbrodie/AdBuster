@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.support.v4.content.LocalBroadcastManager
 import android.util.Log
 import android.widget.TextView
+import net.hockeyapp.android.CrashManager
 
 class MainActivity : Activity() {
     companion object {
@@ -64,5 +65,10 @@ class MainActivity : Activity() {
                         Intent(this, MainActivity::class.java), 0))
             startService(intent)
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        CrashManager.register(this)
     }
 }

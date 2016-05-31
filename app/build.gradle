@@ -11,6 +11,7 @@ android {
         targetSdkVersion 21
         versionName "0.0.1"
         versionCode 1
+        manifestPlaceholders = [HOCKEYAPP_APP_ID: "f5fc3d2b26a24cc699d65708e15870ee"]
     }
 
     buildTypes {
@@ -43,6 +44,7 @@ buildscript {
 }
 repositories {
     mavenCentral()
+    jcenter()
 }
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
@@ -51,4 +53,5 @@ dependencies {
     compile 'org.pcap4j:pcap4j-packetfactory-propertiesbased:1.6.4'
     compile 'org.slf4j:slf4j-android:1.7.21'
     compile 'dnsjava:dnsjava:2.1.7'
+    compile 'net.hockeyapp.android:HockeySDK:4.0.1'
 }
