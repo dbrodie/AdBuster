@@ -49,6 +49,8 @@ const val VPN_UPDATE_STATUS_EXTRA = "VPN_STATUS"
 class AdVpnService : VpnService(), Handler.Callback, Runnable {
     companion object {
         private val TAG = "VpnService"
+        // TODO: Temporary Hack til refactor is done
+        var vpnStatusTextId: Int = R.string.notification_stopped
     }
 
     // TODO: There must be a better way in kotlin to do this
@@ -99,6 +101,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
 
         startForeground(10, notification)
 
+        vpnStatusTextId = text_id
         var intent = Intent(VPN_UPDATE_STATUS_INTENT)
         intent.putExtra(VPN_UPDATE_STATUS_EXTRA, text_id)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)

@@ -45,16 +45,13 @@ class MainActivity : Activity() {
         mVpnServiceBroadcastReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 val str_id = intent.getIntExtra(VPN_UPDATE_STATUS_EXTRA, R.string.notification_stopped)
-                text_status.text = getString(str_id)
+                updateStatus(str_id)
             }
         }
-
-        LocalBroadcastManager.getInstance(this)
-                .registerReceiver(mVpnServiceBroadcastReceiver, IntentFilter(VPN_UPDATE_STATUS_INTENT))
     }
 
-    public override fun onDestroy() {
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(mVpnServiceBroadcastReceiver)
+    private fun updateStatus(textId: Int) {
+        text_status.text = getString(textId)
     }
 
     override fun onActivityResult(request: Int, result: Int, data: Intent?) {
@@ -68,8 +65,17 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(mVpnServiceBroadcastReceiver)
+    }
+
     override fun onResume() {
         super.onResume()
         CrashManager.register(this)
+
+        updateStatus(AdVpnService.vpnStatusTextId)
+        LocalBroadcastManager.getInstance(this)
+                .registerReceiver(mVpnServiceBroadcastReceiver, IntentFilter(VPN_UPDATE_STATUS_INTENT))
     }
 }
