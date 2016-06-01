@@ -16,6 +16,7 @@ import android.support.v4.app.NotificationCompat
 import android.support.v4.content.LocalBroadcastManager
 import android.util.Log
 import android.widget.Toast
+import net.hockeyapp.android.ExceptionHandler
 import org.pcap4j.packet.*
 import org.xbill.DNS.*
 
@@ -221,6 +222,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
                     Log.w(TAG, "Exception in vpn thread, reconnecting", e)
                     // If an exception was thrown, show to the user and try again
                     mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_ERROR_RECONNECTING, e))
+                    ExceptionHandler.saveException(e, Thread.currentThread(), null)
                 }
 
                 // ...wait for 2 seconds and try again
@@ -231,6 +233,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         } catch (e: InterruptedException) {
             Log.i(TAG, "Vpn Thread interrupted")
         } catch (e: Exception) {
+            ExceptionHandler.saveException(e, Thread.currentThread(), null)
             Log.e(TAG, "Exception in run() ", e)
         } finally {
             mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_STOPPING, 0))
@@ -293,11 +296,6 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
                     handleDnsRequest(read_packet, dns_socket, out_fd)
                 }
             }
-        } catch (e: InterruptedException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Got Exception", e)
-            throw e
         } finally {
             executor.shutdownNow()
             pfd.close()
@@ -366,7 +364,8 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
             Log.i(TAG, "WRITING PACKET!" )
             outFd.write(out_packet.rawData)
         } catch (e: Exception) {
-            Log.e(TAG, "Got expcetion", e)
+            Log.e(TAG, "Gat exception", e)
+            ExceptionHandler.saveException(e, Thread.currentThread(), null)
         } finally {
             dnsSocket.close()
             outFd.close()
