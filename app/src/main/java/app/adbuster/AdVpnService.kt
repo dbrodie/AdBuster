@@ -14,6 +14,8 @@ import android.os.Message
 import android.os.ParcelFileDescriptor
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.LocalBroadcastManager
+import android.system.ErrnoException
+import android.system.OsConstants
 import android.util.Log
 import android.widget.Toast
 import net.hockeyapp.android.ExceptionHandler
@@ -31,6 +33,8 @@ import java.util.concurrent.TimeUnit
 enum class Command {
     START, STOP
 }
+
+class VpnNetworkException(msg: String) : RuntimeException(msg)
 
 const val VPN_STATUS_STARTING = 0
 const val VPN_STATUS_RUNNING = 1
@@ -67,7 +71,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
     private var mInterface: ParcelFileDescriptor? = null
     private var m_in_fd: InterruptibleFileInputStream? = null
 
-    private var mDnsServers: List<InetAddress> = listOf()
+    private var mDnsServer: InetAddress? = null
     private var mBlockedHosts: Set<String>? = null
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
@@ -321,9 +325,17 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
 
             if (!mBlockedHosts!!.contains(dns_query_name)) {
                 Log.i(TAG, "    PERMITTED!")
-                val out_pkt = DatagramPacket(dns_data, 0, dns_data.size, mDnsServers[0], 53)
+                val out_pkt = DatagramPacket(dns_data, 0, dns_data.size, mDnsServer!!, 53)
                 Log.i(TAG, "SENDING TO REAL DNS SERVER!")
-                dnsSocket.send(out_pkt)
+                try {
+                    dnsSocket.send(out_pkt)
+                } catch (e: ErrnoException) {
+                    if (e.errno == OsConstants.ENETUNREACH) {
+                        throw VpnNetworkException("Network unreachable, can't send DNS packet")
+                    } else {
+                        throw e
+                    }
+                }
                 Log.i(TAG, "RECEIVING FROM REAL DNS SERVER!")
 
                 val datagram_data = ByteArray(1024)
@@ -365,9 +377,19 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
                     ).build()
 
             Log.i(TAG, "WRITING PACKET!" )
-            outFd.write(out_packet.rawData)
+            try {
+                outFd.write(out_packet.rawData)
+            } catch (e: ErrnoException) {
+                if (e.errno == OsConstants.EBADF) {
+                    throw VpnNetworkException("Outgoing VPN socket closed")
+                } else {
+                    throw e
+                }
+            }
+        } catch (e: VpnNetworkException) {
+            Log.w(TAG, "Ignoring exception, stopping thread", e)
         } catch (e: Exception) {
-            Log.e(TAG, "Gat exception", e)
+            Log.e(TAG, "Got exception", e)
             ExceptionHandler.saveException(e, Thread.currentThread(), null)
         } finally {
             dnsSocket.close()
@@ -379,13 +401,12 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
     private fun getDnsServers() {
         val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         // Seriously, Android? Seriously?
-        val activeInfo = cm.activeNetworkInfo
-        mDnsServers = cm.getLinkProperties(
-                cm.allNetworks.filter { val ni = cm.getNetworkInfo(it);
+        val activeInfo = cm.activeNetworkInfo ?: throw VpnNetworkException("No DNS Server")
+        val servers = cm.allNetworks.filter { val ni = cm.getNetworkInfo(it);
                     ni != null && ni.isConnected && ni.type == activeInfo.type && ni.subtype == activeInfo.subtype
-                }.first()
-        ).dnsServers
-        Log.i(TAG, "Got DNS servers = $mDnsServers")
+                }.elementAtOrNull(0)?.let { cm.getLinkProperties(it).dnsServers }
+        mDnsServer = servers?.first() ?: throw VpnNetworkException("No DNS Server")
+        Log.i(TAG, "Got DNS server = $mDnsServer")
     }
 
     private fun loadBlockedHosts() {
