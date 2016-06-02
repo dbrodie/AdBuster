@@ -11,8 +11,11 @@ import android.os.Bundle
 import android.support.v4.content.LocalBroadcastManager
 import android.util.Log
 import android.widget.TextView
+import android.widget.Toast
 import net.hockeyapp.android.CrashManager
 import kotlinx.android.synthetic.main.form.*
+import net.hockeyapp.android.CrashManagerListener
+import net.hockeyapp.android.utils.Util
 
 class MainActivity : Activity() {
     companion object {
@@ -72,7 +75,13 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        CrashManager.register(this)
+        CrashManager.register(this, Util.getAppIdentifier(this), object: CrashManagerListener() {
+            override fun onCrashesNotSent() {
+                this@MainActivity.runOnUiThread({
+                    Toast.makeText(this@MainActivity, "Crash data failed to sent. Please try again later.", Toast.LENGTH_LONG).show()
+                })
+            }
+        })
 
         updateStatus(AdVpnService.vpnStatusTextId)
         LocalBroadcastManager.getInstance(this)
