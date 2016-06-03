@@ -41,11 +41,10 @@ const val VPN_STATUS_RUNNING = 1
 const val VPN_STATUS_STOPPING = 2
 const val VPN_STATUS_WAITING_FOR_NETWORK = 3
 const val VPN_STATUS_RECONNECTING = 4
-const val VPN_STATUS_RECONNECTING_ERROR = 5
+const val VPN_STATUS_RECONNECTING_NETWORK_ERROR = 5
 const val VPN_STATUS_STOPPED = 6
 
 const private val VPN_MSG_STATUS_UPDATE = 0
-const private val VPN_MSG_ERROR_RECONNECTING = 1
 
 const val VPN_UPDATE_STATUS_INTENT = "app.adbuster.VPN_UPDATE_STATUS"
 const val VPN_UPDATE_STATUS_EXTRA = "VPN_STATUS"
@@ -94,7 +93,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
             VPN_STATUS_STOPPING -> R.string.notification_stopping
             VPN_STATUS_WAITING_FOR_NETWORK -> R.string.notification_waiting_for_net
             VPN_STATUS_RECONNECTING -> R.string.notification_reconnecting
-            VPN_STATUS_RECONNECTING_ERROR -> R.string.notification_reconnecting_error
+            VPN_STATUS_RECONNECTING_NETWORK_ERROR -> R.string.notification_reconnecting_error
             VPN_STATUS_STOPPED -> R.string.notification_stopped
             else -> throw IllegalArgumentException("Invalid vpnStatus value ($vpnStatus)")
         }
@@ -200,10 +199,6 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
 
         when (message.what) {
             VPN_MSG_STATUS_UPDATE -> updateVpnStatus(message.arg1)
-            VPN_MSG_ERROR_RECONNECTING -> {
-                Toast.makeText(this, R.string.toast_reconnecting_error, Toast.LENGTH_LONG).show()
-                updateVpnStatus(VPN_STATUS_RECONNECTING_ERROR)
-            }
             else -> throw IllegalArgumentException("Invalid message with what = ${message.what}")
         }
         return true
@@ -229,11 +224,16 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
                     break
                 } catch (e: InterruptedException) {
                     throw e
-                } catch (e: Exception) {
-                    Log.w(TAG, "Exception in vpn thread, reconnecting", e)
+                } catch (e: VpnNetworkException) {
+                    // We want to filter out VpnNetworkException from out crash analytics as these
+                    // are exceptions that we expect to happen from network errors
+                    Log.w(TAG, "Network exception in vpn thread, ignoring and reconnecting", e)
                     // If an exception was thrown, show to the user and try again
-                    mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_ERROR_RECONNECTING, e))
+                    mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_RECONNECTING_NETWORK_ERROR, 0))
+                } catch (e: Exception) {
+                    Log.e(TAG, "Network exception in vpn thread, reconnecting", e)
                     ExceptionHandler.saveException(e, Thread.currentThread(), null)
+                    mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_RECONNECTING_NETWORK_ERROR, 0))
                 }
 
                 // ...wait for 2 seconds and try again
