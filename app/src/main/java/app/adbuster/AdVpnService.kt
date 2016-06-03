@@ -50,6 +50,9 @@ const private val VPN_MSG_ERROR_RECONNECTING = 1
 const val VPN_UPDATE_STATUS_INTENT = "app.adbuster.VPN_UPDATE_STATUS"
 const val VPN_UPDATE_STATUS_EXTRA = "VPN_STATUS"
 
+const val MIN_RETRY_TIME = 5
+const val MAX_RETRY_TIME = 2*60
+
 class AdVpnService : VpnService(), Handler.Callback, Runnable {
     companion object {
         private val TAG = "VpnService"
@@ -215,6 +218,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
 
             mHandler!!.sendMessage(mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_STARTING, 0))
 
+            var retryTimeout = MIN_RETRY_TIME
             // Try connecting the vpn continuously
             while (true) {
                 try {
@@ -233,7 +237,13 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
                 }
 
                 // ...wait for 2 seconds and try again
-                Thread.sleep(2000)
+                Log.i(TAG, "Retrying to connect in $retryTimeout seconds...")
+                Thread.sleep(retryTimeout.toLong() * 1000)
+                retryTimeout = if (retryTimeout < MAX_RETRY_TIME) {
+                    retryTimeout * 2
+                } else {
+                    retryTimeout
+                }
             }
 
             Log.i(TAG, "Stopped")
