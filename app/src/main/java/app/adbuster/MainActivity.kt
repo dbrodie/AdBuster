@@ -54,7 +54,7 @@ class MainActivity : Activity() {
     }
 
     private fun updateStatus(textId: Int) {
-        text_status.text = getString(textId)
+        text_status.text = getString(vpnStatusToTextId(textId))
     }
 
     override fun onActivityResult(request: Int, result: Int, data: Intent?) {
@@ -83,7 +83,7 @@ class MainActivity : Activity() {
             }
         })
 
-        updateStatus(AdVpnService.vpnStatusTextId)
+        updateStatus(AdVpnService.vpnStatus)
         LocalBroadcastManager.getInstance(this)
                 .registerReceiver(mVpnServiceBroadcastReceiver, IntentFilter(VPN_UPDATE_STATUS_INTENT))
     }

@@ -44,6 +44,17 @@ const val VPN_STATUS_RECONNECTING = 4
 const val VPN_STATUS_RECONNECTING_NETWORK_ERROR = 5
 const val VPN_STATUS_STOPPED = 6
 
+fun vpnStatusToTextId(status: Int): Int = when(status) {
+    VPN_STATUS_STARTING -> R.string.notification_starting
+    VPN_STATUS_RUNNING -> R.string.notification_running
+    VPN_STATUS_STOPPING -> R.string.notification_stopping
+    VPN_STATUS_WAITING_FOR_NETWORK -> R.string.notification_waiting_for_net
+    VPN_STATUS_RECONNECTING -> R.string.notification_reconnecting
+    VPN_STATUS_RECONNECTING_NETWORK_ERROR -> R.string.notification_reconnecting_error
+    VPN_STATUS_STOPPED -> R.string.notification_stopped
+    else -> throw IllegalArgumentException("Invalid vpnStatus value ($status)")
+}
+
 const private val VPN_MSG_STATUS_UPDATE = 0
 
 const val VPN_UPDATE_STATUS_INTENT = "app.adbuster.VPN_UPDATE_STATUS"
@@ -56,7 +67,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
     companion object {
         private val TAG = "VpnService"
         // TODO: Temporary Hack til refactor is done
-        var vpnStatusTextId: Int = R.string.notification_stopped
+        var vpnStatus: Int = VPN_STATUS_STOPPED
     }
 
     // TODO: There must be a better way in kotlin to do this
@@ -86,17 +97,9 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         return Service.START_STICKY
     }
 
-    private fun updateVpnStatus(vpnStatus: Int) {
-        val text_id = when(vpnStatus) {
-            VPN_STATUS_STARTING -> R.string.notification_starting
-            VPN_STATUS_RUNNING -> R.string.notification_running
-            VPN_STATUS_STOPPING -> R.string.notification_stopping
-            VPN_STATUS_WAITING_FOR_NETWORK -> R.string.notification_waiting_for_net
-            VPN_STATUS_RECONNECTING -> R.string.notification_reconnecting
-            VPN_STATUS_RECONNECTING_NETWORK_ERROR -> R.string.notification_reconnecting_error
-            VPN_STATUS_STOPPED -> R.string.notification_stopped
-            else -> throw IllegalArgumentException("Invalid vpnStatus value ($vpnStatus)")
-        }
+    private fun updateVpnStatus(status: Int) {
+        vpnStatus = status
+        val text_id = vpnStatusToTextId(status)
         val notification = NotificationCompat.Builder(this)
                 .setSmallIcon(R.drawable.ic_vpn_notification)
                 .setContentTitle(getString(R.string.notification_title))
@@ -107,9 +110,8 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
 
         startForeground(10, notification)
 
-        vpnStatusTextId = text_id
-        var intent = Intent(VPN_UPDATE_STATUS_INTENT)
-        intent.putExtra(VPN_UPDATE_STATUS_EXTRA, text_id)
+        val intent = Intent(VPN_UPDATE_STATUS_INTENT)
+        intent.putExtra(VPN_UPDATE_STATUS_EXTRA, status)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
