@@ -26,6 +26,7 @@ import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.net.*
 import java.nio.ByteBuffer
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -311,8 +312,12 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
                 Log.i(TAG, "Executing: ${executor.activeCount}")
                 Log.i(TAG, "Backlog: ${executor.queue.size}")
                 // Start a new thread to handle the DNS request
-                executor.execute {
-                    handleDnsRequest(read_packet, dns_socket, out_fd)
+                try {
+                    executor.execute {
+                        handleDnsRequest(read_packet, dns_socket, out_fd)
+                    }
+                } catch (e: RejectedExecutionException) {
+                    VpnNetworkException("High backlog in dns thread pool executor, network probably stalled")
                 }
             }
         } finally {
@@ -334,6 +339,10 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
 
             val dns_data = (parsed_pkt.payload as UdpPacket).payload.rawData
             val msg = Message(dns_data)
+            if (msg.question == null) {
+                Log.i(TAG, "Ignoring DNS packet with no query $msg")
+                return
+            }
             val dns_query_name = msg.question.name.toString(true)
             // Log.i(TAG, "DNS Name = " + dns_query_name)
 
@@ -347,7 +356,7 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
                 try {
                     dnsSocket.send(out_pkt)
                 } catch (e: ErrnoException) {
-                    if (e.errno == OsConstants.ENETUNREACH) {
+                    if ((e.errno == OsConstants.ENETUNREACH) || (e.errno == OsConstants.EPERM)) {
                         throw VpnNetworkException("Network unreachable, can't send DNS packet")
                     } else {
                         throw e
