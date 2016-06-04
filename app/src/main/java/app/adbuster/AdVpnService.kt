@@ -327,6 +327,11 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
             val parsed_pkt = IpV4Packet.newPacket(packet, 0, packet.size)
             // Log.i(TAG, "PARSED_PACKET = " + parsed_pkt)
 
+            if (parsed_pkt.payload !is UdpPacket) {
+                Log.i(TAG, "Ignoring Unknown packet ${parsed_pkt.payload}")
+                return
+            }
+
             val dns_data = (parsed_pkt.payload as UdpPacket).payload.rawData
             val msg = Message(dns_data)
             val dns_query_name = msg.question.name.toString(true)
