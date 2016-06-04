@@ -64,6 +64,30 @@ const val VPN_UPDATE_STATUS_EXTRA = "VPN_STATUS"
 const val MIN_RETRY_TIME = 5
 const val MAX_RETRY_TIME = 2*60
 
+fun checkStartVpnOnBoot(context: Context) {
+    Log.i("BOOT", "Checking whether to start ad buster on boot")
+
+    val pref = context.getSharedPreferences(context.getString(R.string.preferences_file_key), Context.MODE_PRIVATE)
+    if (!pref.getBoolean(context.getString(R.string.vpn_enabled_key), false)) {
+        return
+    }
+
+    if (VpnService.prepare(context) != null) {
+        Log.i("BOOT", "VPN preparation not confirmed by user, changing enabled to false")
+        pref.edit().putBoolean(context.getString(R.string.vpn_enabled_key), false).apply()
+    }
+
+    Log.i("BOOT", "Starting ad buster from boot")
+
+    val intent = Intent(context, AdVpnService::class.java)
+    intent.putExtra("COMMAND", Command.START.ordinal)
+    intent.putExtra("NOTIFICATION_INTENT",
+            PendingIntent.getActivity(context, 0,
+                    Intent(context, MainActivity::class.java), 0))
+    context.startService(intent)
+
+}
+
 class AdVpnService : VpnService(), Handler.Callback, Runnable {
     companion object {
         private val TAG = "VpnService"
@@ -121,6 +145,11 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         if (mHandler == null) {
             mHandler = Handler(this)
         }
+
+        // TODO: Should this be in the activity instead?
+        val edit_pref = getSharedPreferences(getString(R.string.preferences_file_key), MODE_PRIVATE).edit()
+        edit_pref.putBoolean(getString(R.string.vpn_enabled_key), true)
+        edit_pref.apply()
 
         mNotificationIntent = notificationIntent
         updateVpnStatus(VPN_STATUS_STARTING)
@@ -182,6 +211,11 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
     }
 
     private fun stopVpn() {
+        // TODO: Should this be in the activity instead?
+        val edit_pref = getSharedPreferences(getString(R.string.preferences_file_key), MODE_PRIVATE).edit()
+        edit_pref.putBoolean(getString(R.string.vpn_enabled_key), false)
+        edit_pref.apply()
+
         Log.i(TAG, "Stopping Service")
         stopVpnThread()
         mConnectivityChangedReceiver?.let { unregisterReceiver(it) }

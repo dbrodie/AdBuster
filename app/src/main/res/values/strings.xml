@@ -37,4 +37,7 @@
     <string name="toast_reconnecting_error">Exception happened in service, reconnecting in 2s</string>
 
     <string name="status_label">Status:</string>
+    
+    <string name="preferences_file_key">general_preferences</string>
+    <string name="vpn_enabled_key">vpn_enabled</string>
 </resources>

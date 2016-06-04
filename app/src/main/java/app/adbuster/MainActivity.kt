@@ -28,6 +28,8 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.form)
 
+        // Should we make sure the vpn service is started already based o the preferences?
+
         start.setOnClickListener {
             val intent = VpnService.prepare(this)
             if (intent != null) {
