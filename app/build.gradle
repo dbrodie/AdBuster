@@ -2,6 +2,34 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-android-extensions'
 
+def getVersionCode = { ->
+    try {
+        def code = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'tag', '--list', 'v*'
+            standardOutput = code
+        }
+        return code.toString().split("\n").size()
+    }
+    catch (ignored) {
+        return 0;
+    }
+}
+
+def getVersionName = { ->
+    try {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'describe', '--dirty'
+            standardOutput = stdout
+        }
+        return stdout.toString().trim().substring(1)
+    }
+    catch (ignored) {
+        return null;
+    }
+}
+
 android {
     compileSdkVersion 23
     buildToolsVersion "23.0.2"
@@ -10,12 +38,15 @@ android {
         applicationId "app.adbuster"
         minSdkVersion 21
         targetSdkVersion 21
-        versionName "0.0.1"
-        versionCode 1
+        versionName getVersionName()
+        versionCode getVersionCode()
         manifestPlaceholders = [HOCKEYAPP_APP_ID: "f5fc3d2b26a24cc699d65708e15870ee"]
     }
 
     buildTypes {
+        debug {
+            versionNameSuffix "-DEBUG"
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
