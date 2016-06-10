@@ -23,6 +23,7 @@ import org.pcap4j.packet.*
 import org.xbill.DNS.*
 
 import java.io.FileOutputStream
+import java.io.IOException
 import java.io.InputStreamReader
 import java.net.*
 import java.nio.ByteBuffer
@@ -445,6 +446,9 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
                 } else {
                     throw e
                 }
+            } catch (e: IOException) {
+                // TODO: Make this more specific, only for: "File descriptor closed"
+                throw VpnNetworkException("Outgoing VPN output stream closed")
             }
         } catch (e: VpnNetworkException) {
             Log.w(TAG, "Ignoring exception, stopping thread", e)
