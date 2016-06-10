@@ -80,9 +80,11 @@ class MainActivity : Activity() {
         CrashManager.register(this, Util.getAppIdentifier(this), object: CrashManagerListener() {
             override fun onCrashesNotSent() {
                 this@MainActivity.runOnUiThread({
-                    Toast.makeText(this@MainActivity, "Crash data failed to sent. Please try again later.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "Failed to send crash data, will try again later.", Toast.LENGTH_LONG).show()
                 })
             }
+
+            override fun getMaxRetryAttempts() : Int = 3
         })
 
         updateStatus(AdVpnService.vpnStatus)
