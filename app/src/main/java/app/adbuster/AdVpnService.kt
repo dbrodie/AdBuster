@@ -557,10 +557,12 @@ class AdVpnService : VpnService(), Handler.Callback, Runnable {
         builder.setBlocking(true)
 
         // Create a new interface using the builder and save the parameters.
-        val pfd = builder.setSession("@@AdBlockVpn").setConfigureIntent(
-                PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java),
+        val pfd = builder
+                .setSession("Ad Buster")
+                .setConfigureIntent(
+                    PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java),
                         PendingIntent.FLAG_CANCEL_CURRENT)
-            ).establish()
+                ).establish()
         Log.i(TAG, "Configured")
         return pfd
     }
