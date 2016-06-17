@@ -13,46 +13,55 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="3mm">
 
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    <ImageButton
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:src="@drawable/ic_settings"/>
+
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-    <LinearLayout android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" >
+        <ImageButton
+            android:id="@+id/vpn_toggle"
+            android:layout_width="128dp"
+            android:layout_height="128dp"
+            android:layout_gravity="center"
+            android:src="@drawable/power_toggle_bg"
+            android:background="?android:selectableItemBackground"
+            android:scaleType="fitCenter"
+            android:contentDescription="@string/vpn_toggle_description"
+            />
+    </FrameLayout>
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="left">
+
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="3mm">
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:text="@string/status_label"
+            android:id="@+id/text_status_label"
+            android:layout_marginEnd="5dp" />
 
-        <Button
-            style="@style/item"
-            android:id="@+id/start"
-            android:text="@string/start" />
-
-        <Button
-            style="@style/item"
-            android:id="@+id/stop"
-            android:text="@string/stop" />
-
-        <LinearLayout
-            android:orientation="horizontal"
-            android:layout_width="match_parent"
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textAppearance="?android:attr/textAppearanceMedium"
-                android:text="@string/status_label"
-                android:id="@+id/text_status_label"
-                android:layout_marginEnd="5dp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textAppearance="?android:attr/textAppearanceMedium"
-                android:text="@string/notification_stopped"
-                android:id="@+id/text_status" />
-        </LinearLayout>
-
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:text="@string/notification_stopped"
+            android:id="@+id/text_status" />
     </LinearLayout>
-</ScrollView>
+
+</LinearLayout>

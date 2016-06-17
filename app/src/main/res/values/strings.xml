@@ -40,4 +40,5 @@
     
     <string name="preferences_file_key">general_preferences</string>
     <string name="vpn_enabled_key">vpn_enabled</string>
+    <string name="vpn_toggle_description">Toggle VPN</string>
 </resources>

@@ -30,6 +30,10 @@ class MainActivity : Activity() {
 
         // Should we make sure the vpn service is started already based o the preferences?
 
+        vpn_toggle.setOnCheckedChangeListener {
+
+        }
+
         start.setOnClickListener {
             val intent = VpnService.prepare(this)
             if (intent != null) {
@@ -46,6 +50,8 @@ class MainActivity : Activity() {
             intent.putExtra("COMMAND", Command.STOP.ordinal)
             startService(intent)
         }
+
+//        vpn_toggle.setList
 
         mVpnServiceBroadcastReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
