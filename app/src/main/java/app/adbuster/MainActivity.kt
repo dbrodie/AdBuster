@@ -6,16 +6,27 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.drawable.LayerDrawable
 import android.net.VpnService
 import android.os.Bundle
 import android.support.v4.content.LocalBroadcastManager
 import android.util.Log
-import android.widget.TextView
 import android.widget.Toast
 import net.hockeyapp.android.CrashManager
 import kotlinx.android.synthetic.main.form.*
 import net.hockeyapp.android.CrashManagerListener
 import net.hockeyapp.android.utils.Util
+
+fun vpnStatusToToggleLevel(status: Int): Int = when(status) {
+    VPN_STATUS_STOPPED -> 0
+    VPN_STATUS_RUNNING -> 2
+    else -> 1
+}
+
+fun vpnStatusShouldStop(status: Int): Boolean = when(status) {
+    VPN_STATUS_STOPPED -> false
+    else -> true
+}
 
 class MainActivity : Activity() {
     companion object {
@@ -30,28 +41,25 @@ class MainActivity : Activity() {
 
         // Should we make sure the vpn service is started already based o the preferences?
 
-        vpn_toggle.setOnCheckedChangeListener {
+        vpn_toggle.setOnClickListener {
+            if (vpnStatusShouldStop(AdVpnService.vpnStatus)) {
+                Log.i(TAG, "Attempting to disconnect")
 
-        }
-
-        start.setOnClickListener {
-            val intent = VpnService.prepare(this)
-            if (intent != null) {
-                startActivityForResult(intent, 0)
+                val intent = Intent(this, AdVpnService::class.java)
+                intent.putExtra("COMMAND", Command.STOP.ordinal)
+                startService(intent)
             } else {
-                onActivityResult(0, RESULT_OK, null)
+                Log.i(TAG, "Attempting to connect")
+
+                val intent = VpnService.prepare(this)
+                if (intent != null) {
+                    startActivityForResult(intent, 0)
+                } else {
+                    onActivityResult(0, RESULT_OK, null)
+                }
+
             }
         }
-
-        stop.setOnClickListener {
-            Log.i(TAG, "Attempting to disconnect")
-
-            val intent = Intent(this, AdVpnService::class.java)
-            intent.putExtra("COMMAND", Command.STOP.ordinal)
-            startService(intent)
-        }
-
-//        vpn_toggle.setList
 
         mVpnServiceBroadcastReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
@@ -61,8 +69,12 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun updateStatus(textId: Int) {
-        text_status.text = getString(vpnStatusToTextId(textId))
+    private fun updateStatus(status: Int) {
+        Log.i(TAG, "STATUS! " + status + " == " + if (AdVpnService.vpnStatus != VPN_STATUS_RUNNING) { 0 } else { 1 })
+        text_status.text = getString(vpnStatusToTextId(status))
+        val level = vpnStatusToToggleLevel(status)
+        Log.i(TAG, "LEVEL! " + level)
+        vpn_toggle.setImageLevel(level)
     }
 
     override fun onActivityResult(request: Int, result: Int, data: Intent?) {
