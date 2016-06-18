@@ -35,8 +35,8 @@
             android:layout_width="128dp"
             android:layout_height="128dp"
             android:layout_gravity="center"
-            android:src="@drawable/power_toggle_bg"
-            android:background="?android:selectableItemBackground"
+            android:src="@drawable/power_toggle"
+            android:background="@drawable/power_toggle_bg"
             android:scaleType="fitCenter"
             android:contentDescription="@string/vpn_toggle_description"
             />
