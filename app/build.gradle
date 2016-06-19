@@ -6,12 +6,13 @@ def getVersionCode = { ->
     try {
         def code = new ByteArrayOutputStream()
         exec {
-            commandLine 'git' 'rev-list' 'HEAD' '--first-parent' '--count'
+            commandLine 'git', 'rev-list', 'HEAD', '--first-parent', '--count'
             standardOutput = code
         }
-        return code.toString().split("\n").size()
+        return code.toString().trim().toInteger()
     }
-    catch (ignored) {
+    catch (error) {
+        logger.error("Error getting version code: %s", error)
         return 0;
     }
 }
@@ -25,7 +26,8 @@ def getVersionName = { ->
         }
         return stdout.toString().trim().substring(1)
     }
-    catch (ignored) {
+    catch (error) {
+        logger.error("Error getting version name: %s", error)
         return null;
     }
 }
