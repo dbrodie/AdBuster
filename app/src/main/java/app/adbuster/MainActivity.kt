@@ -2,11 +2,8 @@ package app.adbuster
 
 import android.app.Activity
 import android.app.PendingIntent
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.graphics.drawable.LayerDrawable
 import android.net.VpnService
 import android.os.Bundle
 import android.support.v4.content.LocalBroadcastManager
@@ -33,7 +30,10 @@ class MainActivity : Activity() {
         private val TAG = "MainActivity"
     }
 
-    var mVpnServiceBroadcastReceiver : BroadcastReceiver? = null
+    var vpnServiceBroadcastReceiver = broadcastReceiver() { context, intent ->
+        val str_id = intent.getIntExtra(VPN_UPDATE_STATUS_EXTRA, R.string.notification_stopped)
+        updateStatus(str_id)
+    }
 
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,20 +60,11 @@ class MainActivity : Activity() {
 
             }
         }
-
-        mVpnServiceBroadcastReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                val str_id = intent.getIntExtra(VPN_UPDATE_STATUS_EXTRA, R.string.notification_stopped)
-                updateStatus(str_id)
-            }
-        }
     }
 
     private fun updateStatus(status: Int) {
-        Log.i(TAG, "STATUS! " + status + " == " + if (AdVpnService.vpnStatus != VPN_STATUS_RUNNING) { 0 } else { 1 })
         text_status.text = getString(vpnStatusToTextId(status))
         val level = vpnStatusToToggleLevel(status)
-        Log.i(TAG, "LEVEL! " + level)
         vpn_toggle.setImageLevel(level)
     }
 
@@ -90,7 +81,7 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         super.onPause()
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(mVpnServiceBroadcastReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(vpnServiceBroadcastReceiver)
     }
 
     override fun onResume() {
@@ -107,6 +98,6 @@ class MainActivity : Activity() {
 
         updateStatus(AdVpnService.vpnStatus)
         LocalBroadcastManager.getInstance(this)
-                .registerReceiver(mVpnServiceBroadcastReceiver, IntentFilter(VPN_UPDATE_STATUS_INTENT))
+                .registerReceiver(vpnServiceBroadcastReceiver, IntentFilter(VPN_UPDATE_STATUS_INTENT))
     }
 }
