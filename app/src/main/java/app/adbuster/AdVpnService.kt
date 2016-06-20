@@ -41,6 +41,7 @@ fun vpnStatusToTextId(status: Int): Int = when(status) {
 }
 
 const val VPN_MSG_STATUS_UPDATE = 0
+const val VPN_MSG_NETWORK_CHANGED = 1
 
 const val VPN_UPDATE_STATUS_INTENT = "app.adbuster.VPN_UPDATE_STATUS"
 const val VPN_UPDATE_STATUS_EXTRA = "VPN_STATUS"
@@ -85,14 +86,16 @@ class AdVpnService : VpnService() {
         Pair(Command.STOP.ordinal, Command.STOP)
     )
 
-    private var mConnectivityChangedReceiver : BroadcastReceiver? = null
-
     private var handler: Handler = Handler() {
-        handleVpnStatusMessage(it)
+        handleMessage(it)
     }
     private var vpnThread: AdVpnThread = AdVpnThread(this) {
         handler.sendMessage(handler.obtainMessage(VPN_MSG_STATUS_UPDATE, it, 0))
     }
+    private var connectivityChangedReceiver = broadcastReceiver() { context, intent ->
+        handler.sendMessage(handler.obtainMessage(VPN_MSG_NETWORK_CHANGED, intent))
+    }
+
     private var mNotificationIntent: PendingIntent? = null
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
@@ -132,28 +135,7 @@ class AdVpnService : VpnService() {
         mNotificationIntent = notificationIntent
         updateVpnStatus(VPN_STATUS_STARTING)
 
-        mConnectivityChangedReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                if (intent.getIntExtra(ConnectivityManager.EXTRA_NETWORK_TYPE, 0) == ConnectivityManager.TYPE_VPN) {
-                    Log.i(TAG, "Ignoring connectivity changed for our own network")
-                    return
-                }
-
-                if (intent.action != ConnectivityManager.CONNECTIVITY_ACTION) {
-                    Log.e(TAG, "Got bad intent on connectivity changed " + intent.action)
-                }
-                if (intent.getBooleanExtra(ConnectivityManager.EXTRA_NO_CONNECTIVITY, false)) {
-                    Log.i(TAG, "Connectivity changed to no connectivity, wait for a network")
-                    waitForNetVpn()
-                } else {
-                    Log.i(TAG, "Network changed, try to reconnect")
-                    reconnect()
-                }
-
-
-            }
-        }
-        registerReceiver(mConnectivityChangedReceiver, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
+        registerReceiver(connectivityChangedReceiver, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
 
         restartVpnThread()
     }
@@ -185,8 +167,7 @@ class AdVpnService : VpnService() {
 
         Log.i(TAG, "Stopping Service")
         stopVpnThread()
-        mConnectivityChangedReceiver?.let { unregisterReceiver(it) }
-        mConnectivityChangedReceiver = null
+        unregisterReceiver(connectivityChangedReceiver)
         updateVpnStatus(VPN_STATUS_STOPPED)
         stopSelf()
     }
@@ -196,15 +177,34 @@ class AdVpnService : VpnService() {
         stopVpn()
     }
 
-    fun handleVpnStatusMessage(message: Message?): Boolean {
+    fun handleMessage(message: Message?): Boolean {
         if (message == null) {
             return true
         }
 
         when (message.what) {
             VPN_MSG_STATUS_UPDATE -> updateVpnStatus(message.arg1)
+            VPN_MSG_NETWORK_CHANGED -> connectivityChanged(message.obj as Intent)
             else -> throw IllegalArgumentException("Invalid message with what = ${message.what}")
         }
         return true
+    }
+
+    fun connectivityChanged(intent: Intent) {
+        if (intent.getIntExtra(ConnectivityManager.EXTRA_NETWORK_TYPE, 0) == ConnectivityManager.TYPE_VPN) {
+            Log.i(TAG, "Ignoring connectivity changed for our own network")
+            return
+        }
+
+        if (intent.action != ConnectivityManager.CONNECTIVITY_ACTION) {
+            Log.e(TAG, "Got bad intent on connectivity changed " + intent.action)
+        }
+        if (intent.getBooleanExtra(ConnectivityManager.EXTRA_NO_CONNECTIVITY, false)) {
+            Log.i(TAG, "Connectivity changed to no connectivity, wait for a network")
+            waitForNetVpn()
+        } else {
+            Log.i(TAG, "Network changed, try to reconnect")
+            reconnect()
+        }
     }
 }

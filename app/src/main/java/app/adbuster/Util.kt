@@ -1,7 +1,18 @@
 package app.adbuster
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
 import android.util.Log
 import java.nio.ByteBuffer
+
+fun broadcastReceiver(init: (Context, Intent) -> Unit): BroadcastReceiver {
+    return object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            init(context, intent)
+        }
+    }
+}
 
 fun toHexString(ba: ByteArray) : String {
     val str = StringBuilder()
