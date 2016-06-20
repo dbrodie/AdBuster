@@ -96,7 +96,9 @@ class AdVpnService : VpnService() {
         handler.sendMessage(handler.obtainMessage(VPN_MSG_NETWORK_CHANGED, intent))
     }
 
-    private var mNotificationIntent: PendingIntent? = null
+    private var notificationBuilder = NotificationCompat.Builder(this)
+            .setSmallIcon(R.drawable.ic_vpn_notification)
+            .setPriority(Notification.PRIORITY_MIN)
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         Log.i(TAG, "onStartCommand")
@@ -110,16 +112,10 @@ class AdVpnService : VpnService() {
 
     private fun updateVpnStatus(status: Int) {
         vpnStatus = status
-        val text_id = vpnStatusToTextId(status)
-        val notification = NotificationCompat.Builder(this)
-                .setSmallIcon(R.drawable.ic_vpn_notification)
-                .setContentTitle(getString(R.string.notification_title))
-                .setContentText(getString(text_id))
-                .setContentIntent(mNotificationIntent)
-                .setPriority(Notification.PRIORITY_MIN)
-                .build()
+        val notificationTextId = vpnStatusToTextId(status)
+        notificationBuilder.setContentText(getString(notificationTextId))
 
-        startForeground(10, notification)
+        startForeground(10, notificationBuilder.build())
 
         val intent = Intent(VPN_UPDATE_STATUS_INTENT)
         intent.putExtra(VPN_UPDATE_STATUS_EXTRA, status)
@@ -132,7 +128,8 @@ class AdVpnService : VpnService() {
         edit_pref.putBoolean(getString(R.string.vpn_enabled_key), true)
         edit_pref.apply()
 
-        mNotificationIntent = notificationIntent
+        notificationBuilder.setContentTitle(getString(R.string.notification_title))
+        notificationBuilder.setContentIntent(notificationIntent)
         updateVpnStatus(VPN_STATUS_STARTING)
 
         registerReceiver(connectivityChangedReceiver, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
