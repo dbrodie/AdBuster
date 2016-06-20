@@ -93,7 +93,7 @@ class AdVpnThread(vpnService: VpnService, notify: ((Int) -> Unit)?): Runnable {
                     notify?.let { it(VPN_STATUS_RECONNECTING_NETWORK_ERROR) }
                 }
 
-                // ...wait for 2 seconds and try again
+                // ...wait and try again
                 Log.i(TAG, "Retrying to connect in $retryTimeout seconds...")
                 Thread.sleep(retryTimeout.toLong() * 1000)
                 retryTimeout = if (retryTimeout < MAX_RETRY_TIME) {
@@ -121,8 +121,6 @@ class AdVpnThread(vpnService: VpnService, notify: ((Int) -> Unit)?): Runnable {
         val pfd = configure()
         vpnFileDescriptor = pfd
 
-        Log.i(TAG, "FD = " + vpnFileDescriptor!!.fd)
-
         // Packets to be sent are queued in this input stream.
         val inputStream = InterruptibleFileInputStream(pfd.fileDescriptor)
         interruptible = inputStream
@@ -140,36 +138,33 @@ class AdVpnThread(vpnService: VpnService, notify: ((Int) -> Unit)?): Runnable {
             // We keep forwarding packets till something goes wrong.
             while (true) {
                 // Read the outgoing packet from the input stream.
-                Log.i(TAG, "WAITING FOR PACKET!")
-                val length: Int
-                try {
-                    length = inputStream.read(packet)
+                val length = try {
+                    inputStream.read(packet)
                 } catch (e: InterruptibleFileInputStream.InterruptedStreamException) {
                     Log.i(TAG, "Told to stop VPN")
                     return
                 }
-                Log.i(TAG, "DONE WAITING FOR PACKET!")
+
                 if (length == 0) {
                     // TODO: Possibly change to exception
                     Log.w(TAG, "Got empty packet!")
                 }
 
-                val read_packet = packet.copyOfRange(0, length)
+                val readPacket = packet.copyOfRange(0, length)
 
                 // Packets received need to be written to this output stream.
-                val out_fd = FileOutputStream(pfd.fileDescriptor)
+                val outFd = FileOutputStream(pfd.fileDescriptor)
 
                 // Packets to be sent to the real DNS server will need to be protected from the VPN
-                val dns_socket = DatagramSocket()
-                vpnService.protect(dns_socket)
+                val dnsSocket = DatagramSocket()
+                vpnService.protect(dnsSocket)
 
-                Log.i(TAG, "Starting new thread to handle dns request")
-                Log.i(TAG, "Executing: ${executor.activeCount}")
-                Log.i(TAG, "Backlog: ${executor.queue.size}")
+                Log.i(TAG, "Starting new thread to handle dns request" +
+                        " (active = ${executor.activeCount} backlog = ${executor.queue.size})")
                 // Start a new thread to handle the DNS request
                 try {
                     executor.execute {
-                        handleDnsRequest(read_packet, dns_socket, out_fd)
+                        handleDnsRequest(readPacket, dnsSocket, outFd)
                     }
                 } catch (e: RejectedExecutionException) {
                     VpnNetworkException("High backlog in dns thread pool executor, network probably stalled")
@@ -184,32 +179,29 @@ class AdVpnThread(vpnService: VpnService, notify: ((Int) -> Unit)?): Runnable {
 
     private fun handleDnsRequest(packet: ByteArray, dnsSocket: DatagramSocket, outFd: FileOutputStream) {
         try {
-            val parsed_pkt = IpV4Packet.newPacket(packet, 0, packet.size)
-            // Log.i(TAG, "PARSED_PACKET = " + parsed_pkt)
+            val parsedPacket = IpV4Packet.newPacket(packet, 0, packet.size)
 
-            if (parsed_pkt.payload !is UdpPacket) {
-                Log.i(TAG, "Ignoring Unknown packet ${parsed_pkt.payload}")
+            if (parsedPacket.payload !is UdpPacket) {
+                Log.i(TAG, "Ignoring unknown packet type ${parsedPacket.payload}")
                 return
             }
 
-            val dns_data = (parsed_pkt.payload as UdpPacket).payload.rawData
-            val msg = Message(dns_data)
-            if (msg.question == null) {
-                Log.i(TAG, "Ignoring DNS packet with no query $msg")
+            val dnsRawData = (parsedPacket.payload as UdpPacket).payload.rawData
+            val dnsMsg = Message(dnsRawData)
+            if (dnsMsg.question == null) {
+                Log.i(TAG, "Ignoring DNS packet with no query $dnsMsg")
                 return
             }
-            val dns_query_name = msg.question.name.toString(true)
-            // Log.i(TAG, "DNS Name = " + dns_query_name)
+            val dnsQueryName = dnsMsg.question.name.toString(true)
 
             val response: ByteArray
-            Log.i(TAG, "DNS Name = $dns_query_name")
 
-            if (!blockedHosts!!.contains(dns_query_name)) {
-                Log.i(TAG, "    PERMITTED!")
-                val out_pkt = DatagramPacket(dns_data, 0, dns_data.size, dnsServer!!, 53)
-                Log.i(TAG, "SENDING TO REAL DNS SERVER!")
+            if (!blockedHosts!!.contains(dnsQueryName)) {
+                Log.i(TAG, "DNS Name $dnsQueryName Allowed!")
+                val outPacket = DatagramPacket(dnsRawData, 0, dnsRawData.size, dnsServer!!, 53)
+
                 try {
-                    dnsSocket.send(out_pkt)
+                    dnsSocket.send(outPacket)
                 } catch (e: ErrnoException) {
                     if ((e.errno == OsConstants.ENETUNREACH) || (e.errno == OsConstants.EPERM)) {
                         throw VpnNetworkException("Network unreachable, can't send DNS packet")
@@ -217,38 +209,34 @@ class AdVpnThread(vpnService: VpnService, notify: ((Int) -> Unit)?): Runnable {
                         throw e
                     }
                 }
-                Log.i(TAG, "RECEIVING FROM REAL DNS SERVER!")
 
-                val datagram_data = ByteArray(1024)
-                val reply_pkt = DatagramPacket(datagram_data, datagram_data.size)
-                dnsSocket.receive(reply_pkt)
-                // Log.i(TAG, "IN = " + reply_pkt)
-                // Log.i(TAG, "adderess = " + reply_pkt.address + " port = " + reply_pkt.port)
-                // logPacket(datagram_data)
-                response = datagram_data
+                val datagramData = ByteArray(1024)
+                val replyPacket = DatagramPacket(datagramData, datagramData.size)
+                dnsSocket.receive(replyPacket)
+                response = datagramData
             } else {
-                Log.i(TAG, "    BLOCKED!")
-                msg.header.setFlag(Flags.QR.toInt())
-                msg.addRecord(ARecord(msg.question.name,
-                        msg.question.dClass,
+                Log.i(TAG, "DNS Name $dnsQueryName Blocked!")
+                dnsMsg.header.setFlag(Flags.QR.toInt())
+                dnsMsg.addRecord(ARecord(dnsMsg.question.name,
+                        dnsMsg.question.dClass,
                         10.toLong(),
                         Inet4Address.getLocalHost()), Section.ANSWER)
-                response = msg.toWire()
+                response = dnsMsg.toWire()
             }
 
 
-            val udp_packet = parsed_pkt.payload as UdpPacket
-            val out_packet = IpV4Packet.Builder(parsed_pkt)
-                    .srcAddr(parsed_pkt.header.dstAddr)
-                    .dstAddr(parsed_pkt.header.srcAddr)
+            val udpOutPacket = parsedPacket.payload as UdpPacket
+            val ipOutPacket = IpV4Packet.Builder(parsedPacket)
+                    .srcAddr(parsedPacket.header.dstAddr)
+                    .dstAddr(parsedPacket.header.srcAddr)
                     .correctChecksumAtBuild(true)
                     .correctLengthAtBuild(true)
                     .payloadBuilder(
-                            UdpPacket.Builder(udp_packet)
-                                    .srcPort(udp_packet.header.dstPort)
-                                    .dstPort(udp_packet.header.srcPort)
-                                    .srcAddr(parsed_pkt.header.dstAddr)
-                                    .dstAddr(parsed_pkt.header.srcAddr)
+                            UdpPacket.Builder(udpOutPacket)
+                                    .srcPort(udpOutPacket.header.dstPort)
+                                    .dstPort(udpOutPacket.header.srcPort)
+                                    .srcAddr(parsedPacket.header.dstAddr)
+                                    .dstAddr(parsedPacket.header.srcAddr)
                                     .correctChecksumAtBuild(true)
                                     .correctLengthAtBuild(true)
                                     .payloadBuilder(
@@ -256,10 +244,8 @@ class AdVpnThread(vpnService: VpnService, notify: ((Int) -> Unit)?): Runnable {
                                                     .rawData(response)
                                     )
                     ).build()
-
-            Log.i(TAG, "WRITING PACKET!" )
             try {
-                outFd.write(out_packet.rawData)
+                outFd.write(ipOutPacket.rawData)
             } catch (e: ErrnoException) {
                 if (e.errno == OsConstants.EBADF) {
                     throw VpnNetworkException("Outgoing VPN socket closed")
@@ -321,7 +307,7 @@ class AdVpnThread(vpnService: VpnService, notify: ((Int) -> Unit)?): Runnable {
                 reader.close()
             }
 
-            Log.i(TAG, "From file $fileName loaded $count  entires")
+            Log.i(TAG, "From file $fileName loaded $count entires")
         }
 
         blockedHosts = _blockedHosts
