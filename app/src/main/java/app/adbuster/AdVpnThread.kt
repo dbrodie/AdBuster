@@ -28,7 +28,7 @@ import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
-class AdVpnThread(vpnService: AdVpnService, notify: ((Int) -> Unit)?): Runnable {
+class AdVpnThread(vpnService: VpnService, notify: ((Int) -> Unit)?): Runnable {
     companion object {
         const val TAG = "AdVpnThread"
     }
