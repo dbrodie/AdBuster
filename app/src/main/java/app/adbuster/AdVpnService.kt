@@ -11,26 +11,9 @@ import android.net.ConnectivityManager
 import android.net.VpnService
 import android.os.Handler
 import android.os.Message
-import android.os.ParcelFileDescriptor
 import android.support.v4.app.NotificationCompat
 import android.support.v4.content.LocalBroadcastManager
-import android.system.ErrnoException
-import android.system.OsConstants
 import android.util.Log
-import android.widget.Toast
-import net.hockeyapp.android.ExceptionHandler
-import org.pcap4j.packet.*
-import org.xbill.DNS.*
-
-import java.io.FileOutputStream
-import java.io.IOException
-import java.io.InputStreamReader
-import java.net.*
-import java.nio.ByteBuffer
-import java.util.concurrent.RejectedExecutionException
-import java.util.concurrent.SynchronousQueue
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
 
 enum class Command {
     START, STOP
