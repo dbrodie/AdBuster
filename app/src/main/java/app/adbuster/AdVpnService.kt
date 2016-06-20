@@ -230,37 +230,4 @@ class AdVpnService : VpnService(), Handler.Callback {
         }
         return true
     }
-
-
-    private fun logPacket(packet: ByteArray) = logPacket(packet, 0, packet.size)
-
-    private fun logPacket(packet: ByteArray, size: Int) = logPacket(packet, 0, size)
-
-    private fun logPacket(packet: ByteArray, offset: Int, size: Int) {
-        var logLine = "PACKET: <"
-        for (index in (offset..(size-1))) {
-            logLine += String.format("%02x", packet[index])
-        }
-
-        Log.i(TAG, logLine + ">")
-    }
-
-    private fun logPacketNice(packet: ByteBuffer) {
-        Log.i(TAG, "=============== PACKET ===============")
-        var logLine = String.format("%04x: ", 0)
-        for ((index, value) in packet.array().withIndex()) {
-            if (index != 0 && index % 16 == 0) {
-                Log.i(TAG, logLine)
-                logLine = String.format("%04x: ", index)
-            }
-
-            if (index == packet.limit()) {
-                break
-            }
-
-            logLine += String.format("%02x ", value)
-        }
-
-        Log.i(TAG, logLine)
-    }
 }
