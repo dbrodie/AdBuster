@@ -106,10 +106,9 @@ class AdVpnService : VpnService(), Handler.Callback {
 
     // TODO: This public is temporary
     var mHandler: Handler? = null
-    private var mThread: Thread? = null
+    private var vpnThread: AdVpnThread = AdVpnThread(this)
     private var mNotificationIntent: PendingIntent? = null
-    // TODO: This public is temporary
-    var m_in_fd: InterruptibleFileInputStream? = null
+
 
     // TODO: This public is temporary
     var mBlockedHosts: Set<String>? = null
@@ -183,23 +182,12 @@ class AdVpnService : VpnService(), Handler.Callback {
     }
 
     private fun restartVpnThread() {
-        Log.i(TAG, "Restarting Vpn Thread")
-        stopVpnThread()
-        mThread = Thread(AdVpnThread(this), "AdBusterThread")
-        mThread?.start()
-        Log.i(TAG, "Vpn Thread started")
+        vpnThread.stopThread()
+        vpnThread.startThread()
     }
 
     private fun stopVpnThread() {
-        Log.i(TAG, "Stopping Vpn Thread")
-        mThread?.interrupt()
-        m_in_fd?.interrupt()
-        mThread?.join(2000)
-        if (mThread?.isAlive ?: false) {
-            Log.w(TAG, "Couldn't kill Vpn Thread")
-        }
-        mThread = null
-        Log.i(TAG, "Vpn Thread stopped")
+        vpnThread.stopThread()
     }
 
     private fun waitForNetVpn() {

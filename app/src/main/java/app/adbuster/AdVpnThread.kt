@@ -34,6 +34,27 @@ class AdVpnThread(vpnService: AdVpnService): Runnable {
     private var vpnService = vpnService
     private var dnsServer: InetAddress? = null
     private var vpnFileDescriptor: ParcelFileDescriptor? = null
+    private var thread: Thread? = null
+    private var interruptible: InterruptibleFileInputStream? = null
+
+    fun startThread() {
+        Log.i(TAG, "Starting Vpn Thread")
+        thread = Thread(this, "AdBusterVpnThread").apply { start() }
+        Log.i(TAG, "Vpn Thread started")
+    }
+
+    fun stopThread() {
+        Log.i(TAG, "Stopping Vpn Thread")
+        thread?.interrupt()
+        interruptible?.interrupt()
+        thread?.join(2000)
+        if (thread?.isAlive ?: false) {
+            Log.w(TAG, "Couldn't kill Vpn Thread")
+        }
+        thread = null
+        Log.i(TAG, "Vpn Thread stopped")
+
+    }
 
     @Synchronized override fun run() {
         try {
@@ -99,7 +120,7 @@ class AdVpnThread(vpnService: AdVpnService): Runnable {
 
         // Packets to be sent are queued in this input stream.
         val inputStream = InterruptibleFileInputStream(pfd.fileDescriptor)
-        vpnService.m_in_fd = inputStream
+        interruptible = inputStream
 
         // Allocate the buffer for a single packet.
         val packet = ByteArray(32767)
