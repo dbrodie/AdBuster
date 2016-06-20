@@ -39,6 +39,7 @@ class AdVpnThread(vpnService: AdVpnService, notify: ((Int) -> Unit)?): Runnable 
     private var vpnFileDescriptor: ParcelFileDescriptor? = null
     private var thread: Thread? = null
     private var interruptible: InterruptibleFileInputStream? = null
+    private var blockedHosts: Set<String>? = null
 
     fun startThread() {
         Log.i(TAG, "Starting Vpn Thread")
@@ -203,7 +204,7 @@ class AdVpnThread(vpnService: AdVpnService, notify: ((Int) -> Unit)?): Runnable 
             val response: ByteArray
             Log.i(TAG, "DNS Name = $dns_query_name")
 
-            if (!vpnService.mBlockedHosts!!.contains(dns_query_name)) {
+            if (!blockedHosts!!.contains(dns_query_name)) {
                 Log.i(TAG, "    PERMITTED!")
                 val out_pkt = DatagramPacket(dns_data, 0, dns_data.size, dnsServer!!, 53)
                 Log.i(TAG, "SENDING TO REAL DNS SERVER!")
@@ -294,13 +295,13 @@ class AdVpnThread(vpnService: AdVpnService, notify: ((Int) -> Unit)?): Runnable 
 
     private fun loadBlockedHosts() {
         // Don't load the hosts more than once (temporary til we have dynamic lists)
-        if (vpnService.mBlockedHosts != null) {
+        if (blockedHosts != null) {
             Log.i(TAG, "Block list already loaded")
             return
         }
 
         Log.i(TAG, "Loading block list")
-        val blockedHosts : MutableSet<String> = mutableSetOf()
+        val _blockedHosts : MutableSet<String> = mutableSetOf()
 
         for (fileName in listOf("adaway_hosts.txt", "ad_servers.txt")) {
             val reader = vpnService.assets.open(fileName)
@@ -312,7 +313,7 @@ class AdVpnThread(vpnService: AdVpnService, notify: ((Int) -> Unit)?): Runnable 
                         val split = s.split(" ", "\t")
                         if (split.size == 2 && split[0] == "127.0.0.1") {
                             count += 1
-                            blockedHosts.add(split[1].toLowerCase())
+                            _blockedHosts.add(split[1].toLowerCase())
                         }
                     }
                 }
@@ -323,8 +324,8 @@ class AdVpnThread(vpnService: AdVpnService, notify: ((Int) -> Unit)?): Runnable 
             Log.i(TAG, "From file $fileName loaded $count  entires")
         }
 
-        vpnService.mBlockedHosts = blockedHosts
-        Log.i(TAG, "Loaded ${vpnService.mBlockedHosts!!.size} blocked hosts")
+        blockedHosts = _blockedHosts
+        Log.i(TAG, "Loaded ${blockedHosts!!.size} blocked hosts")
     }
 
     @Throws(Exception::class)

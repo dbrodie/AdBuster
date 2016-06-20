@@ -86,14 +86,10 @@ class AdVpnService : VpnService(), Handler.Callback {
     )
 
     private var mConnectivityChangedReceiver : BroadcastReceiver? = null
-    
+
     private var mHandler: Handler? = null
     private var vpnThread: AdVpnThread = AdVpnThread(this) { updateVpnStatus(it) }
     private var mNotificationIntent: PendingIntent? = null
-
-
-    // TODO: This public is temporary
-    var mBlockedHosts: Set<String>? = null
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         Log.i(TAG, "onStartCommand")
