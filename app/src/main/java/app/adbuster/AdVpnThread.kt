@@ -28,11 +28,12 @@ import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
-class AdVpnThread(vpnService: AdVpnService): Runnable {
+class AdVpnThread(vpnService: AdVpnService, notify: ((Int) -> Unit)?): Runnable {
     companion object {
         const val TAG = "AdVpnThread"
     }
-    
+
+    private var notify: ((Int) -> Unit)? = notify
     private var vpnService = vpnService
     private var dnsServer: InetAddress? = null
     private var vpnFileDescriptor: ParcelFileDescriptor? = null
@@ -65,7 +66,8 @@ class AdVpnThread(vpnService: AdVpnService): Runnable {
             // Load the block list
             loadBlockedHosts()
 
-            vpnService.mHandler!!.sendMessage(vpnService.mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_STARTING, 0))
+            notify?.let { it(VPN_STATUS_STARTING) }
+            notify?.let { it(VPN_STATUS_STARTING) }
 
             var retryTimeout = MIN_RETRY_TIME
             // Try connecting the vpn continuously
@@ -83,11 +85,11 @@ class AdVpnThread(vpnService: AdVpnService): Runnable {
                     // are exceptions that we expect to happen from network errors
                     Log.w(TAG, "Network exception in vpn thread, ignoring and reconnecting", e)
                     // If an exception was thrown, show to the user and try again
-                    vpnService.mHandler!!.sendMessage(vpnService.mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_RECONNECTING_NETWORK_ERROR, 0))
+                    notify?.let { it(VPN_STATUS_RECONNECTING_NETWORK_ERROR) }
                 } catch (e: Exception) {
                     Log.e(TAG, "Network exception in vpn thread, reconnecting", e)
                     ExceptionHandler.saveException(e, Thread.currentThread(), null)
-                    vpnService.mHandler!!.sendMessage(vpnService.mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_RECONNECTING_NETWORK_ERROR, 0))
+                    notify?.let { it(VPN_STATUS_RECONNECTING_NETWORK_ERROR) }
                 }
 
                 // ...wait for 2 seconds and try again
@@ -107,7 +109,7 @@ class AdVpnThread(vpnService: AdVpnService): Runnable {
             ExceptionHandler.saveException(e, Thread.currentThread(), null)
             Log.e(TAG, "Exception in run() ", e)
         } finally {
-            vpnService.mHandler!!.sendMessage(vpnService.mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_STOPPING, 0))
+            notify?.let { it(VPN_STATUS_STOPPING) }
             Log.i(TAG, "Exiting")
         }
     }
@@ -132,7 +134,7 @@ class AdVpnThread(vpnService: AdVpnService): Runnable {
 
         try {
             // Now we are connected. Set the flag and show the message.
-            vpnService.mHandler!!.sendMessage(vpnService.mHandler!!.obtainMessage(VPN_MSG_STATUS_UPDATE, VPN_STATUS_RUNNING, 0))
+            notify?.let { it(VPN_STATUS_RUNNING) }
 
             // We keep forwarding packets till something goes wrong.
             while (true) {

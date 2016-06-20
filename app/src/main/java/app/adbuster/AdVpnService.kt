@@ -86,10 +86,9 @@ class AdVpnService : VpnService(), Handler.Callback {
     )
 
     private var mConnectivityChangedReceiver : BroadcastReceiver? = null
-
-    // TODO: This public is temporary
-    var mHandler: Handler? = null
-    private var vpnThread: AdVpnThread = AdVpnThread(this)
+    
+    private var mHandler: Handler? = null
+    private var vpnThread: AdVpnThread = AdVpnThread(this) { updateVpnStatus(it) }
     private var mNotificationIntent: PendingIntent? = null
 
 
