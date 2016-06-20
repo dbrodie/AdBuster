@@ -72,7 +72,7 @@ fun checkStartVpnOnBoot(context: Context) {
 
 }
 
-class AdVpnService : VpnService(), Handler.Callback {
+class AdVpnService : VpnService() {
     companion object {
         private val TAG = "VpnService"
         // TODO: Temporary Hack til refactor is done
@@ -87,8 +87,12 @@ class AdVpnService : VpnService(), Handler.Callback {
 
     private var mConnectivityChangedReceiver : BroadcastReceiver? = null
 
-    private var mHandler: Handler? = null
-    private var vpnThread: AdVpnThread = AdVpnThread(this) { updateVpnStatus(it) }
+    private var handler: Handler = Handler() {
+        handleVpnStatusMessage(it)
+    }
+    private var vpnThread: AdVpnThread = AdVpnThread(this) {
+        handler.sendMessage(handler.obtainMessage(VPN_MSG_STATUS_UPDATE, it, 0))
+    }
     private var mNotificationIntent: PendingIntent? = null
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
@@ -120,11 +124,6 @@ class AdVpnService : VpnService(), Handler.Callback {
     }
 
     private fun startVpn(notificationIntent: PendingIntent) {
-        // The handler is only used to show messages.
-        if (mHandler == null) {
-            mHandler = Handler(this)
-        }
-
         // TODO: Should this be in the activity instead?
         val edit_pref = getSharedPreferences(getString(R.string.preferences_file_key), MODE_PRIVATE).edit()
         edit_pref.putBoolean(getString(R.string.vpn_enabled_key), true)
@@ -197,7 +196,7 @@ class AdVpnService : VpnService(), Handler.Callback {
         stopVpn()
     }
 
-    override fun handleMessage(message: Message?): Boolean {
+    fun handleVpnStatusMessage(message: Message?): Boolean {
         if (message == null) {
             return true
         }
