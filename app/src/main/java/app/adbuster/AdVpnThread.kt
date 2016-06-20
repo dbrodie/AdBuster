@@ -28,9 +28,11 @@ import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
-const val TAG = "AdVpnThread"
-
 class AdVpnThread(vpnService: AdVpnService): Runnable {
+    companion object {
+        const val TAG = "AdVpnThread"
+    }
+    
     private var vpnService = vpnService
     private var dnsServer: InetAddress? = null
     private var vpnFileDescriptor: ParcelFileDescriptor? = null
