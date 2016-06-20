@@ -164,7 +164,11 @@ class AdVpnService : VpnService() {
 
         Log.i(TAG, "Stopping Service")
         stopVpnThread()
-        unregisterReceiver(connectivityChangedReceiver)
+        try {
+            unregisterReceiver(connectivityChangedReceiver)
+        } catch (e: IllegalArgumentException) {
+            Log.i(TAG, "Ignoring exception on unregistering receiver")
+        }
         updateVpnStatus(VPN_STATUS_STOPPED)
         stopSelf()
     }
