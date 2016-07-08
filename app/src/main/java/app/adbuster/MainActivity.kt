@@ -1,7 +1,6 @@
 package app.adbuster
 
-import android.app.Activity
-import android.app.PendingIntent
+import android.app.*
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.VpnService
@@ -9,8 +8,8 @@ import android.os.Bundle
 import android.support.v4.content.LocalBroadcastManager
 import android.util.Log
 import android.widget.Toast
-import net.hockeyapp.android.CrashManager
 import kotlinx.android.synthetic.main.form.*
+import net.hockeyapp.android.CrashManager
 import net.hockeyapp.android.CrashManagerListener
 import net.hockeyapp.android.utils.Util
 
@@ -34,6 +33,11 @@ class MainActivity : Activity() {
         val str_id = intent.getIntExtra(VPN_UPDATE_STATUS_EXTRA, R.string.notification_stopped)
         updateStatus(str_id)
     }
+
+    var updateServiceBroadcastReceiver = broadcastReceiver { context, intent ->
+        UpdateDialogFragment(intent).show(fragmentManager, "update")
+    }
+
 
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,6 +64,8 @@ class MainActivity : Activity() {
 
             }
         }
+
+        UpdateService.startActionFetchServerVersion(this)
     }
 
     private fun updateStatus(status: Int) {
@@ -82,6 +88,7 @@ class MainActivity : Activity() {
     override fun onPause() {
         super.onPause()
         LocalBroadcastManager.getInstance(this).unregisterReceiver(vpnServiceBroadcastReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(updateServiceBroadcastReceiver)
     }
 
     override fun onResume() {
@@ -99,5 +106,27 @@ class MainActivity : Activity() {
         updateStatus(AdVpnService.vpnStatus)
         LocalBroadcastManager.getInstance(this)
                 .registerReceiver(vpnServiceBroadcastReceiver, IntentFilter(VPN_UPDATE_STATUS_INTENT))
+        LocalBroadcastManager.getInstance(this)
+                .registerReceiver(updateServiceBroadcastReceiver, IntentFilter(UPDATE_AVAILABLE_INTENT))
     }
+
+    inner class UpdateDialogFragment(intent: Intent) : DialogFragment() {
+        val versionInfo = intent.getParcelableExtra<VersionInfo>(UpdateService.EXTRA_NEW_VERSION_INFO)!!
+
+        override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+            val builder = AlertDialog.Builder(activity)
+            builder.setTitle(R.string.update_message)
+            builder.setMessage(versionInfo.releaseData)
+            builder.setPositiveButton(R.string.update_dialog_positive_button) { dialog, id ->
+                Log.i(TAG, "Installing available update.")
+                UpdateService.startActionDownloadUpdate(this@MainActivity, versionInfo.downloadUrl)
+            }
+            builder.setNegativeButton(R.string.update_dialog_negative_button) { dialog, id ->
+                Log.i(TAG, "Skipping available update.")
+            }
+
+            return builder.create()
+        }
+    }
+
 }

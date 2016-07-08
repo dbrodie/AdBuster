@@ -38,4 +38,8 @@
     <string name="preferences_file_key">general_preferences</string>
     <string name="vpn_enabled_key">vpn_enabled</string>
     <string name="vpn_toggle_description">Toggle VPN</string>
+
+    <string name="update_message">An update is available!</string>
+    <string name="update_dialog_positive_button">Update</string>
+    <string name="update_dialog_negative_button">Cancel</string>
 </resources>
