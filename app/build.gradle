@@ -43,6 +43,7 @@ android {
         versionName getVersionName()
         versionCode getVersionCode()
         manifestPlaceholders = [HOCKEYAPP_APP_ID: "f5fc3d2b26a24cc699d65708e15870ee"]
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -91,4 +92,9 @@ dependencies {
     testCompile 'junit:junit:4.12'
     testCompile 'com.nhaarman:mockito-kotlin:0.5.2'
     testCompile 'org.robolectric:robolectric:3.1'
+    androidTestCompile 'com.android.support:support-annotations:23.4.0'
+    androidTestCompile 'com.android.support.test:runner:0.5'
+    androidTestCompile 'com.android.support.test:rules:0.5'
+    androidTestCompile 'com.android.support.test.uiautomator:uiautomator-v18:2.1.1'
+    androidTestCompile 'com.android.support.test.espresso:espresso-core:2.2.1'
 }
