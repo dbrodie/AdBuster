@@ -61,7 +61,8 @@
             android:layout_height="wrap_content"
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:text="@string/notification_stopped"
-            android:id="@+id/text_status" />
+            android:id="@+id/text_status"
+            android:contentDescription="@string/status_description" />
     </LinearLayout>
 
 </LinearLayout>
