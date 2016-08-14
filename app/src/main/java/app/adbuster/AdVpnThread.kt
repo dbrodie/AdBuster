@@ -1,6 +1,7 @@
 package app.adbuster
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.VpnService
@@ -27,6 +28,20 @@ import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+
+fun getDnsServers(context: Context) : InetAddress {
+    val cm = context.getSystemService(VpnService.CONNECTIVITY_SERVICE) as ConnectivityManager
+    // Seriously, Android? Seriously?
+    val activeInfo = cm.activeNetworkInfo ?: throw VpnNetworkException("No DNS Server")
+    val servers = cm.allNetworks.filter {
+        val ni = cm.getNetworkInfo(it)
+        ni != null && ni.isConnected && ni.type == activeInfo.type && ni.subtype == activeInfo.subtype
+    }.elementAtOrNull(0)?.let {
+        cm.getLinkProperties(it)?.dnsServers
+    }
+    val dnsServer = servers?.first() ?: throw VpnNetworkException("No DNS Server")
+    return dnsServer
+}
 
 class AdVpnThread(vpnService: VpnService, notify: ((Int) -> Unit)?): Runnable {
     companion object {
@@ -268,17 +283,6 @@ class AdVpnThread(vpnService: VpnService, notify: ((Int) -> Unit)?): Runnable {
 
     }
 
-    private fun getDnsServers() {
-        val cm = vpnService.getSystemService(VpnService.CONNECTIVITY_SERVICE) as ConnectivityManager
-        // Seriously, Android? Seriously?
-        val activeInfo = cm.activeNetworkInfo ?: throw VpnNetworkException("No DNS Server")
-        val servers = cm.allNetworks.filter { val ni = cm.getNetworkInfo(it);
-            ni != null && ni.isConnected && ni.type == activeInfo.type && ni.subtype == activeInfo.subtype
-        }.elementAtOrNull(0)?.let { cm.getLinkProperties(it).dnsServers }
-        dnsServer = servers?.first() ?: throw VpnNetworkException("No DNS Server")
-        Log.i(TAG, "Got DNS server = $dnsServer")
-    }
-
     private fun loadBlockedHosts() {
         // Don't load the hosts more than once (temporary til we have dynamic lists)
         if (blockedHosts != null) {
@@ -320,7 +324,8 @@ class AdVpnThread(vpnService: VpnService, notify: ((Int) -> Unit)?): Runnable {
         Log.i(TAG, "Configuring")
 
         // Get the current DNS servers before starting the VPN
-        getDnsServers()
+        dnsServer = getDnsServers(vpnService as Context)
+        Log.i(TAG, "Got DNS server = $dnsServer")
 
         // Configure a builder while parsing the parameters.
         // TODO: Make this dynamic

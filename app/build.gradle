@@ -34,7 +34,7 @@ def getVersionName = { ->
 
 android {
     compileSdkVersion 23
-    buildToolsVersion "23.0.2"
+    buildToolsVersion "23.0.3"
 
     defaultConfig {
         applicationId "app.adbuster"
@@ -43,6 +43,7 @@ android {
         versionName getVersionName()
         versionCode getVersionCode()
         manifestPlaceholders = [HOCKEYAPP_APP_ID: "f5fc3d2b26a24cc699d65708e15870ee"]
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -68,7 +69,7 @@ android {
     }
 }
 buildscript {
-    ext.kotlin_version = '1.0.2'
+    ext.kotlin_version = '1.0.3'
     repositories {
         mavenCentral()
     }
@@ -88,4 +89,12 @@ dependencies {
     compile 'org.slf4j:slf4j-android:1.7.21'
     compile 'dnsjava:dnsjava:2.1.7'
     compile 'net.hockeyapp.android:HockeySDK:4.0.1'
+    testCompile 'junit:junit:4.12'
+    testCompile 'com.nhaarman:mockito-kotlin:0.5.2'
+    testCompile 'org.robolectric:robolectric:3.1'
+    androidTestCompile 'com.android.support:support-annotations:23.4.0'
+    androidTestCompile 'com.android.support.test:runner:0.5'
+    androidTestCompile 'com.android.support.test:rules:0.5'
+    androidTestCompile 'com.android.support.test.uiautomator:uiautomator-v18:2.1.1'
+    androidTestCompile 'com.android.support.test.espresso:espresso-core:2.2.1'
 }
