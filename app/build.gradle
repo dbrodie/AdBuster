@@ -88,4 +88,7 @@ dependencies {
     compile 'org.slf4j:slf4j-android:1.7.21'
     compile 'dnsjava:dnsjava:2.1.7'
     compile 'net.hockeyapp.android:HockeySDK:4.0.1'
+    testCompile 'junit:junit:4.12'
+    testCompile 'com.nhaarman:mockito-kotlin:0.5.2'
+    testCompile 'org.robolectric:robolectric:3.1'
 }
