@@ -1,7 +1,7 @@
 # AdBuster
 
 Ad Buster is an Open Source (GPLv3 License) lightweight ad blocker for non-rooted Android devices. It uses a *fake* VPN
-to intercept and block the relevant DNS requests. (DNS requests that are not bloked are passed through to your original
+to intercept and block the relevant DNS requests. (DNS requests that are not blocked are passed through to your original
 DNS server.
 
 _NOTE: The VPN used by this ad blocker is a loopback vpn service. *No data is sent to any third party!*_
